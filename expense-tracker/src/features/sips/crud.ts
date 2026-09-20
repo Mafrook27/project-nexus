@@ -2,7 +2,7 @@ import type { CrudConfig } from '@/server/crud';
 import { sipSchema, sipUpdateSchema } from './schema';
 
 export const sipsCrud: CrudConfig = {
-  table: 'sips',
+  collection: 'sips',
   columns: [
     'name',
     'amount',
@@ -16,13 +16,17 @@ export const sipsCrud: CrudConfig = {
   ],
   createSchema: sipSchema,
   updateSchema: sipUpdateSchema,
-  listSql: (userId) => ({
-    text: `SELECT s.*, p.name AS person_name, i.name AS investment_name
-           FROM sips s
-           LEFT JOIN people p ON p.id = s.person_id
-           LEFT JOIN investments i ON i.id = s.investment_id
-           WHERE s.user_id = $1
-           ORDER BY s.active DESC, s.amount DESC`,
-    params: [userId],
-  }),
+  listPipeline: (userId) => [
+    { $match: { user_id: userId } },
+    { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+    { $lookup: { from: 'investments', localField: 'investment_id', foreignField: '_id', as: '__i' } },
+    {
+      $addFields: {
+        person_name: { $first: '$__p.name' },
+        investment_name: { $first: '$__i.name' },
+      },
+    },
+    { $project: { __p: 0, __i: 0 } },
+    { $sort: { active: -1, amount: -1 } },
+  ],
 };

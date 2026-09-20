@@ -2,7 +2,7 @@ import type { CrudConfig } from '@/server/crud';
 import { liabilitySchema, liabilityUpdateSchema } from './schema';
 
 export const liabilitiesCrud: CrudConfig = {
-  table: 'liabilities',
+  collection: 'liabilities',
   columns: [
     'name',
     'type',
@@ -15,10 +15,11 @@ export const liabilitiesCrud: CrudConfig = {
   ],
   createSchema: liabilitySchema,
   updateSchema: liabilityUpdateSchema,
-  listSql: (userId) => ({
-    text: `SELECT l.*, p.name AS person_name FROM liabilities l
-           LEFT JOIN people p ON p.id = l.person_id
-           WHERE l.user_id = $1 ORDER BY l.outstanding DESC`,
-    params: [userId],
-  }),
+  listPipeline: (userId) => [
+    { $match: { user_id: userId } },
+    { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+    { $addFields: { person_name: { $first: '$__p.name' } } },
+    { $project: { __p: 0 } },
+    { $sort: { outstanding: -1 } },
+  ],
 };

@@ -1,4 +1,4 @@
-import { one } from '@/server/db/client';
+import { users } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
 import { profileSchema } from '@/features/settings/schema';
 import { ok, readJson, route } from '@/server/http';
@@ -7,24 +7,29 @@ export const runtime = 'nodejs';
 
 export const GET = route(async () => {
   const session = await requireUser();
-  const user = await one(
-    'SELECT id, email, name, currency, settings, created_at FROM users WHERE id = $1',
-    [session.id],
+  const user = await users().findOne(
+    { _id: session.id },
+    { projection: { password_hash: 0 } },
   );
-  return ok(user);
+  return ok(user ? { ...user, id: user._id } : null);
 });
 
 export const PATCH = route(async (req: Request) => {
   const session = await requireUser();
   const input = profileSchema.parse(await readJson(req));
-  const user = await one(
-    `UPDATE users SET
-       name     = COALESCE($2, name),
-       currency = COALESCE($3, currency),
-       settings = CASE WHEN $4::jsonb IS NULL THEN settings ELSE settings || $4::jsonb END
-     WHERE id = $1
-     RETURNING id, email, name, currency, settings`,
-    [session.id, input.name ?? null, input.currency ?? null, input.settings ? JSON.stringify(input.settings) : null],
+
+  const set: Record<string, unknown> = {};
+  if (input.name) set.name = input.name;
+  if (input.currency) set.currency = input.currency;
+  // Settings merge field by field, so saving one slider does not wipe the rest.
+  for (const [key, value] of Object.entries(input.settings ?? {})) {
+    if (value !== undefined) set[`settings.${key}`] = value;
+  }
+
+  const user = await users().findOneAndUpdate(
+    { _id: session.id },
+    { $set: set },
+    { returnDocument: 'after', projection: { password_hash: 0 } },
   );
-  return ok(user);
+  return ok(user ? { ...user, id: user._id } : null);
 });

@@ -4,7 +4,7 @@ import { transactionSchema, transactionUpdateSchema } from '@/features/transacti
 export const runtime = 'nodejs';
 
 export const { GET, PATCH, DELETE } = itemRoutes({
-  table: 'transactions',
+  collection: 'transactions',
   columns: [
     'type',
     'bucket',

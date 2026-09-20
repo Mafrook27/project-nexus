@@ -1,43 +1,61 @@
+import { categories, transactions } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
-import { query } from '@/server/db/client';
 import { ok, route } from '@/server/http';
+import { TRANSACTION_LOOKUPS } from '@/features/transactions/service';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Everything waiting for an answer, newest first, plus the shortlist of
- *  categories worth offering as one-tap chips. */
+/** Everything waiting for an answer, plus the categories worth offering as chips. */
 export const GET = route(async () => {
   const user = await requireUser();
 
   const [rows, topCategories] = await Promise.all([
-    query(
-      `SELECT t.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
-       FROM transactions t
-       LEFT JOIN categories c ON c.id = t.category_id
-       LEFT JOIN accounts   a ON a.id = t.account_id
-       WHERE t.user_id = $1 AND t.status = 'detected'
-       ORDER BY t.transaction_at DESC NULLS LAST
-       LIMIT 100`,
-      [user.id],
-    ),
+    transactions()
+      .aggregate([
+        { $match: { user_id: user.id, status: 'detected' } },
+        { $sort: { transaction_at: -1 } },
+        { $limit: 100 },
+        ...TRANSACTION_LOOKUPS,
+        { $addFields: { id: '$_id' } },
+      ])
+      .toArray(),
     // Offering all twenty categories as chips makes the card unreadable. These
-    // are the ones this person actually uses, which covers almost every spend
-    // in one tap; the rest stay one dropdown away.
-    query<{ id: string }>(
-      `SELECT c.id
-       FROM categories c
-       LEFT JOIN transactions t
-         ON t.category_id = c.id
-        AND t.status <> 'ignored'
-        AND t.txn_date > CURRENT_DATE - 90
-       WHERE c.user_id = $1 AND c.kind = 'expense'
-       GROUP BY c.id, c.name
-       ORDER BY COUNT(t.id) DESC, c.name ASC
-       LIMIT 6`,
-      [user.id],
-    ),
+    // are the ones this person actually uses.
+    categories()
+      .aggregate<{ _id: string }>([
+        { $match: { user_id: user.id, kind: 'expense' } },
+        {
+          $lookup: {
+            from: 'transactions',
+            let: { catId: '$_id' },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ['$category_id', '$$catId'] },
+                      { $ne: ['$status', 'ignored'] },
+                    ],
+                  },
+                },
+              },
+              { $count: 'n' },
+            ],
+            as: '__used',
+          },
+        },
+        { $addFields: { uses: { $ifNull: [{ $first: '__used.n' }, 0] } } },
+        { $sort: { uses: -1, name: 1 } },
+        { $limit: 6 },
+        { $project: { _id: 1 } },
+      ])
+      .toArray(),
   ]);
 
-  return ok({ rows, count: rows.length, topCategoryIds: topCategories.map((c) => c.id) });
+  return ok({
+    rows,
+    count: rows.length,
+    topCategoryIds: topCategories.map((c) => c._id),
+  });
 });

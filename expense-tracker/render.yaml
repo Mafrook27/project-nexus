@@ -3,8 +3,8 @@
 #
 #   Render dashboard -> New -> Blueprint -> pick this repository
 #
-# DATABASE_URL is marked `sync: false`, so Render asks you for it on the first
-# deploy. Paste your Neon (or Supabase) connection string there.
+# MONGODB_URI is marked `sync: false`, so Render asks you for it on the first
+# deploy. Paste your MongoDB Atlas connection string there.
 services:
   - type: web
     name: paisa
@@ -21,8 +21,9 @@ services:
         value: 22.11.0
       - key: NODE_ENV
         value: production
-      # Paste your Postgres connection string when Render prompts.
-      - key: DATABASE_URL
+      # Paste your Atlas connection string when Render prompts. Keep the
+      # database name on the end: .../paisa?retryWrites=true&w=majority
+      - key: MONGODB_URI
         sync: false
       # Render generates a strong random value and keeps it across deploys.
       - key: AUTH_SECRET
@@ -31,13 +32,7 @@ services:
       - key: ALLOWED_EMAILS
         sync: false
 
-# Prefer Render's own Postgres over Neon? Uncomment this and change the
-# DATABASE_URL entry above to read from it. Note Render's free database is
-# deleted after 30 days; Neon's free tier is not.
-#
-# databases:
-#   - name: paisa-db
-#     plan: free
-#     region: singapore
-#     databaseName: paisa
-#     user: paisa
+# Atlas is not hosted by Render, so allow Render's outbound traffic to reach it:
+# Atlas -> Network Access -> Add IP Address -> 0.0.0.0/0. That is safe only
+# because your database user has a long random password; Atlas still refuses
+# anyone without it. Render's free plan has no static outbound IP to allow-list.

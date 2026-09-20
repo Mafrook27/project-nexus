@@ -1,4 +1,4 @@
-import { one, transaction } from '@/server/db/client';
+import { merchantRules, newId, transactions } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
 import { categorizeSchema } from '@/features/transactions/intelligence/schema';
 import { notFound, ok, readJson, route } from '@/server/http';
@@ -14,56 +14,45 @@ export const POST = route(async (req: Request, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const input = categorizeSchema.parse(await readJson(req));
 
-  const existing = await one<{ merchant: string | null }>(
-    `SELECT merchant FROM transactions WHERE id = $1 AND user_id = $2`,
-    [id, user.id],
-  );
+  const existing = await transactions().findOne({ _id: id, user_id: user.id });
   if (!existing) throw notFound('Transaction not found');
 
-  return transaction(async (q) => {
-    const [row] = await q(
-      `UPDATE transactions SET
-         category_id = COALESCE($3, category_id),
-         bucket      = COALESCE($4, bucket),
-         need_level  = COALESCE($5, need_level),
-         reason      = COALESCE($6, reason),
-         status      = 'categorized',
-         updated_at  = now()
-       WHERE id = $1 AND user_id = $2
-       RETURNING *`,
-      [
-        id,
-        user.id,
-        input.category_id ?? null,
-        input.bucket ?? null,
-        input.need_level ?? null,
-        input.reason ?? null,
-      ],
+  const set: Record<string, unknown> = { status: 'categorized', updated_at: new Date() };
+  if (input.category_id) set.category_id = input.category_id;
+  if (input.bucket) set.bucket = input.bucket;
+  if (input.need_level) set.need_level = input.need_level;
+  if (input.reason !== undefined && input.reason !== null) set.reason = input.reason;
+
+  const updated = await transactions().findOneAndUpdate(
+    { _id: id, user_id: user.id },
+    { $set: set },
+    { returnDocument: 'after' },
+  );
+
+  let rule = null;
+  if (input.remember && existing.merchant && input.category_id) {
+    rule = await merchantRules().findOneAndUpdate(
+      { user_id: user.id, pattern: existing.merchant, match_type: 'contains' },
+      {
+        $set: {
+          category_id: input.category_id,
+          bucket: input.bucket ?? null,
+          need_level: input.need_level ?? null,
+          auto_confirm: input.auto_confirm,
+        },
+        $setOnInsert: {
+          _id: newId(),
+          user_id: user.id,
+          pattern: existing.merchant,
+          match_type: 'contains',
+          hits: 0,
+          last_used_at: null,
+          created_at: new Date(),
+        },
+      },
+      { upsert: true, returnDocument: 'after' },
     );
+  }
 
-    let rule = null;
-    if (input.remember && existing.merchant && input.category_id) {
-      [rule] = await q(
-        `INSERT INTO merchant_rules
-           (user_id, pattern, match_type, category_id, bucket, need_level, auto_confirm)
-         VALUES ($1, $2, 'contains', $3, $4, $5, $6)
-         ON CONFLICT (user_id, pattern, match_type) DO UPDATE
-           SET category_id  = EXCLUDED.category_id,
-               bucket       = EXCLUDED.bucket,
-               need_level   = EXCLUDED.need_level,
-               auto_confirm = EXCLUDED.auto_confirm
-         RETURNING *`,
-        [
-          user.id,
-          existing.merchant,
-          input.category_id,
-          input.bucket ?? null,
-          input.need_level ?? null,
-          input.auto_confirm,
-        ],
-      );
-    }
-
-    return ok({ transaction: row, rule });
-  });
+  return ok({ transaction: updated, rule });
 });

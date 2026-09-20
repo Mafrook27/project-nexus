@@ -2,7 +2,7 @@ import type { CrudConfig } from '@/server/crud';
 import { recurringSchema, recurringUpdateSchema } from './schema';
 
 export const recurringCrud: CrudConfig = {
-  table: 'recurring',
+  collection: 'recurring',
   columns: [
     'name',
     'amount',
@@ -16,13 +16,18 @@ export const recurringCrud: CrudConfig = {
   ],
   createSchema: recurringSchema,
   updateSchema: recurringUpdateSchema,
-  listSql: (userId) => ({
-    text: `SELECT r.*, c.name AS category_name, c.color AS category_color, a.name AS account_name
-           FROM recurring r
-           LEFT JOIN categories c ON c.id = r.category_id
-           LEFT JOIN accounts a ON a.id = r.account_id
-           WHERE r.user_id = $1
-           ORDER BY r.active DESC, r.next_due ASC`,
-    params: [userId],
-  }),
+  listPipeline: (userId) => [
+    { $match: { user_id: userId } },
+    { $lookup: { from: 'categories', localField: 'category_id', foreignField: '_id', as: '__c' } },
+    { $lookup: { from: 'accounts', localField: 'account_id', foreignField: '_id', as: '__a' } },
+    {
+      $addFields: {
+        category_name: { $first: '$__c.name' },
+        category_color: { $first: '$__c.color' },
+        account_name: { $first: '$__a.name' },
+      },
+    },
+    { $project: { __c: 0, __a: 0 } },
+    { $sort: { active: -1, next_due: 1 } },
+  ],
 };

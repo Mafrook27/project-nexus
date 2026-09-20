@@ -3,7 +3,7 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   // `standalone` keeps the Render/Docker deploy small; Vercel ignores it safely.
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
-  serverExternalPackages: ['pg', 'bcryptjs'],
+  serverExternalPackages: ['mongodb', 'bcryptjs'],
   async headers() {
     return [
       {

@@ -1,5 +1,5 @@
+import { investments, transactions } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
-import { query } from '@/server/db/client';
 import { route, searchParams } from '@/server/http';
 
 export const runtime = 'nodejs';
@@ -22,26 +22,58 @@ export const GET = route(async (req: Request) => {
 
   const rows =
     what === 'investments'
-      ? await query(
-          `SELECT i.name, i.type, i.symbol, i.units, i.avg_price, i.last_price,
-                  i.invested, i.current_value, i.liquid, p.name AS owner
-           FROM investments i LEFT JOIN people p ON p.id = i.person_id
-           WHERE i.user_id = $1 ORDER BY i.name`,
-          [user.id],
-        )
-      : await query(
-          `SELECT t.txn_date, t.type, t.bucket, t.amount, c.name AS category,
-                  a.name AS account, p.name AS person, t.merchant, t.note
-           FROM transactions t
-           LEFT JOIN categories c ON c.id = t.category_id
-           LEFT JOIN accounts a ON a.id = t.account_id
-           LEFT JOIN people p ON p.id = t.person_id
-           WHERE t.user_id = $1 ORDER BY t.txn_date DESC`,
-          [user.id],
-        );
+      ? await investments()
+          .aggregate<Record<string, unknown>>([
+            { $match: { user_id: user.id } },
+            { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+            {
+              $project: {
+                _id: 0,
+                name: 1,
+                type: 1,
+                symbol: 1,
+                units: 1,
+                avg_price: 1,
+                last_price: 1,
+                invested: 1,
+                current_value: 1,
+                liquid: 1,
+                owner: { $first: '$__p.name' },
+              },
+            },
+            { $sort: { name: 1 } },
+          ])
+          .toArray()
+      : await transactions()
+          .aggregate<Record<string, unknown>>([
+            { $match: { user_id: user.id } },
+            { $lookup: { from: 'categories', localField: 'category_id', foreignField: '_id', as: '__c' } },
+            { $lookup: { from: 'accounts', localField: 'account_id', foreignField: '_id', as: '__a' } },
+            { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+            {
+              $project: {
+                _id: 0,
+                txn_date: 1,
+                type: 1,
+                bucket: 1,
+                need_level: 1,
+                amount: 1,
+                category: { $first: '$__c.name' },
+                account: { $first: '$__a.name' },
+                person: { $first: '$__p.name' },
+                merchant: 1,
+                reason: 1,
+                note: 1,
+                source: 1,
+                status: 1,
+              },
+            },
+            { $sort: { txn_date: -1 } },
+          ])
+          .toArray();
 
   const today = new Date().toISOString().slice(0, 10);
-  return new Response(toCsv(rows as Record<string, unknown>[]), {
+  return new Response(toCsv(rows), {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="paisa-${what}-${today}.csv"`,

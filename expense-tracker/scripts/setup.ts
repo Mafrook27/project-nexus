@@ -3,12 +3,12 @@
  *
  *   npm run setup
  *
- * Generates the auth secret, collects a database URL, proves the connection
- * works before writing anything, creates the tables and optionally loads demo
- * data. Re-running it is safe.
+ * Generates the auth secret, collects a MongoDB connection string, proves the
+ * connection works before writing anything, creates the indexes and optionally
+ * loads demo data. Re-running it is safe.
  *
  * Non-interactive too, for CI or a rebuild:
- *   DATABASE_URL=postgres://... npm run setup -- --yes
+ *   MONGODB_URI=mongodb+srv://... npm run setup -- --yes
  */
 import { randomBytes } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -17,7 +17,7 @@ import { createInterface } from 'node:readline/promises';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Pool } from 'pg';
+import { MongoClient } from 'mongodb';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = join(root, '.env.local');
@@ -58,7 +58,7 @@ async function main() {
   const existing = await readEnv();
 
   // ---- database -----------------------------------------------------------
-  let url = process.env.DATABASE_URL ?? existing.DATABASE_URL ?? '';
+  let url = process.env.MONGODB_URI ?? existing.MONGODB_URI ?? '';
   if (url && !autoYes) {
     console.log(`Found a database URL already: ${c.dim(mask(url))}`);
     if (!(await confirm('Keep it?'))) url = '';
@@ -66,34 +66,41 @@ async function main() {
 
   while (!url) {
     console.log(`\nWhere should the data live?\n`);
-    console.log(`  ${c.bold('1')}  Neon        ${c.dim('free forever, no card. https://neon.tech')}`);
-    console.log(`  ${c.bold('2')}  Supabase    ${c.dim('free 500MB, pauses when idle')}`);
-    console.log(`  ${c.bold('3')}  Local       ${c.dim('Postgres already on this machine')}`);
-    console.log(`  ${c.bold('4')}  Docker      ${c.dim('spin one up, command printed for you')}\n`);
-    const choice = await ask('Pick 1-4: ', '1');
+    console.log(`  ${c.bold('1')}  MongoDB Atlas  ${c.dim('free M0, never expires. https://cloud.mongodb.com')}`);
+    console.log(`  ${c.bold('2')}  Local mongod   ${c.dim('already running on this machine')}`);
+    console.log(`  ${c.bold('3')}  Docker         ${c.dim('spin one up, command printed for you')}\n`);
+    const choice = await ask('Pick 1-3: ', '1');
 
-    if (choice === '3') {
+    if (choice === '2') {
       url = await ask(
-        `Connection URL ${c.dim('[postgresql://localhost:5432/paisa]')}: `,
-        'postgresql://localhost:5432/paisa',
+        `Connection URI ${c.dim('[mongodb://localhost:27017/paisa]')}: `,
+        'mongodb://localhost:27017/paisa',
       );
-    } else if (choice === '4') {
+    } else if (choice === '3') {
       console.log(`\nRun this in another terminal, then come back:\n`);
+      // A replica set, not a bare mongod: multi-document transactions need one.
       console.log(
         c.blue(
-          '  docker run -d --name paisa-db -e POSTGRES_PASSWORD=paisa -p 5432:5432 postgres:16\n',
+          '  docker run -d --name paisa-db -p 27017:27017 mongo:7 --replSet rs0\n' +
+            '  docker exec paisa-db mongosh --quiet --eval "rs.initiate()"\n',
         ),
       );
       await ask('Press enter once it is running. ');
-      url = 'postgresql://postgres:paisa@localhost:5432/postgres';
+      url = 'mongodb://localhost:27017/paisa?directConnection=true';
     } else {
-      const site = choice === '2' ? 'https://supabase.com' : 'https://neon.tech';
-      console.log(`\n  1. Sign up at ${c.blue(site)} and create a project`);
-      console.log(`  2. Copy the ${c.bold('pooled')} connection string`);
-      console.log(
-        c.dim('     (the one with -pooler in the host. It survives serverless reconnects.)\n'),
-      );
+      console.log(`\n  1. Sign up at ${c.blue('https://cloud.mongodb.com')} and create a free M0 cluster`);
+      console.log(`  2. Database Access → add a user, and ${c.bold('let Atlas generate the password')}`);
+      console.log(`  3. Network Access → allow your IP, or 0.0.0.0/0 if your host's IP moves`);
+      console.log(`  4. Connect → Drivers → copy the connection string\n`);
+      console.log(c.dim('     It looks like mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/\n'));
       url = await ask('Paste it here: ');
+      // Atlas leaves the database name out; without one everything lands in "test".
+      if (url && !/\/[A-Za-z0-9_-]+(\?|$)/.test(url.replace(/^mongodb(\+srv)?:\/\//, ''))) {
+        url = url.includes('?')
+          ? url.replace('?', '/paisa?')
+          : `${url.replace(/\/$/, '')}/paisa`;
+        console.log(c.dim(`  Added the database name: …/paisa`));
+      }
     }
 
     if (!url) continue;
@@ -116,13 +123,20 @@ async function main() {
     : randomBytes(48).toString('base64');
   if (secret !== existing.AUTH_SECRET) console.log('Generated a new sign-in secret.');
 
-  await writeEnv({ ...existing, DATABASE_URL: url, AUTH_SECRET: secret });
+  await writeEnv({ ...existing, MONGODB_URI: url, AUTH_SECRET: secret });
   console.log(`Wrote ${c.bold('.env.local')}`);
 
-  // ---- tables -------------------------------------------------------------
-  process.stdout.write('Creating tables… ');
-  await applySchema(url);
-  console.log(c.green('done'));
+  // ---- indexes ------------------------------------------------------------
+  // MongoDB creates collections on first write, so there is nothing to create
+  // except the indexes - including the unique ones the app relies on for
+  // correctness rather than for speed.
+  process.stdout.write('Creating indexes… ');
+  process.env.MONGODB_URI = url;
+  const { ensureIndexes } = await import('../src/server/db/indexes');
+  const { closeClient } = await import('../src/server/db/mongo');
+  const report = await ensureIndexes();
+  await closeClient();
+  console.log(c.green(`done (${report.reduce((n, r) => n + r.created, 0)} created)`));
 
   // ---- demo data ----------------------------------------------------------
   if (await confirm('\nLoad a year of demo data to look around?')) {
@@ -151,7 +165,7 @@ async function readEnv(): Promise<Record<string, string>> {
 async function writeEnv(values: Record<string, string>) {
   const body = [
     '# Written by `npm run setup`. Never commit this file.',
-    `DATABASE_URL="${values.DATABASE_URL}"`,
+    `MONGODB_URI="${values.MONGODB_URI}"`,
     `AUTH_SECRET="${values.AUTH_SECRET}"`,
     '',
     '# Optional: only these emails may register. Empty means anyone can.',
@@ -165,35 +179,23 @@ async function writeEnv(values: Record<string, string>) {
   await writeFile(envPath, body, { mode: 0o600 });
 }
 
-function poolFor(url: string) {
-  const local = /localhost|127\.0\.0\.1/.test(url);
-  return new Pool({
-    connectionString: url,
-    ssl: local ? undefined : { rejectUnauthorized: false },
-    connectionTimeoutMillis: 15_000,
-    max: 1,
-  });
-}
-
 async function testConnection(url: string): Promise<string | null> {
-  const pool = poolFor(url);
+  const client = new MongoClient(url, { serverSelectionTimeoutMS: 15_000 });
   try {
-    await pool.query('SELECT 1');
+    await client.connect();
+    const info = await client.db('admin').command({ hello: 1 });
+    if (!info.setName) {
+      console.log(
+        c.dim('\n  Note: this is a single node, not a replica set. Everything works, but a'),
+      );
+      console.log(c.dim('  batch of spends is written one at a time instead of all-or-nothing.'));
+      process.stdout.write('  ');
+    }
     return null;
   } catch (err) {
-    return err instanceof Error ? err.message : String(err);
+    return err instanceof Error ? err.message.split('\n')[0] : String(err);
   } finally {
-    await pool.end().catch(() => {});
-  }
-}
-
-async function applySchema(url: string) {
-  const sql = await readFile(join(root, 'src/server/db/schema.sql'), 'utf8');
-  const pool = poolFor(url);
-  try {
-    await pool.query(sql);
-  } finally {
-    await pool.end().catch(() => {});
+    await client.close().catch(() => {});
   }
 }
 

@@ -3,60 +3,65 @@
 Everything here has a free tier. Total cost: ₹0.
 
 The app is a single Next.js project, so "frontend" and "backend" deploy as one
-thing. You need two services: somewhere to run the app, and a Postgres
-database.
+thing. You need two services: somewhere to run the app, and a MongoDB database.
 
 ---
 
 ## Will it cost anything? No, and here is the arithmetic
 
-Measured from a real database holding a seeded year of data, indexes included:
+One transaction, stored with every field the SMS parser fills in — merchant,
+note, the raw bank message, the bank reference — measures **763 bytes** as
+BSON. Its entries in the eight indexes add roughly **350 bytes**. Call it
+**1.1 KB** per transaction before compression; MongoDB compresses collections
+with snappy on disk, so the real figure is lower.
 
 | | |
 |---|---|
-| One transaction, with every index | **1.7 KB** |
-| A heavy year (40 spends a month) | **~0.8 MB** |
-| Ten years | **~8 MB** |
-| Whole database after ten years, Postgres overhead included | **~17 MB** |
-| Neon's free tier | **512 MB** |
+| One transaction, indexes included | **~1.1 KB** |
+| A heavy year (40 spends a month) | **~0.5 MB** |
+| Ten years | **~5 MB** |
+| Atlas M0 free tier | **512 MB** |
 
-Ten years of tracking uses about **3%** of the free allowance. Storage is not
-the thing that will ever push you onto a paid plan, so do not pick a database
-on that basis.
+Ten years of tracking uses about **1%** of the free allowance. Storage is not
+the thing that will ever push you onto a paid plan.
 
 What actually differs between the free tiers:
 
 | | Storage | Expires? | Sleeps? | Card needed |
 |---|---|---|---|---|
-| **Neon** (recommended) | 0.5 GB | no | scales to zero, wakes in ~1s | no |
-| **Supabase** | 0.5 GB | no | pauses after 7 idle days, manual resume | no |
-| **Render Postgres** | 1 GB | **deleted after 30 days** | no | no |
+| **MongoDB Atlas M0** (recommended) | 0.5 GB | no | no | no |
+| **Atlas on Azure/GCP** | 0.5 GB | no | no | no |
 
-Neon is the default here because it neither expires nor needs waking by hand.
+Atlas M0 is the default here: it does not expire, does not need a card, and
+does not pause after idle days. Its one real limit is 500 connections, and this
+app opens ten.
 
 ---
 
-## Step 1 — Create the database (Neon)
+## Step 1 — Create the database (MongoDB Atlas)
 
-Neon's free tier does not expire and does not need a card.
-
-1. Sign up at **https://neon.tech** and create a project.
-   Pick the region closest to you — `ap-southeast-1` (Singapore) for India.
-2. Name the database `paisa`.
-3. Copy the **pooled** connection string. It looks like:
+1. Sign up at **https://www.mongodb.com/cloud/atlas** and create a project.
+2. **Build a Database → M0 (Free)**. Pick the region closest to you —
+   Mumbai (`ap-south-1`) for India.
+3. **Database Access → Add New Database User.** Give it a long random password
+   and the **Read and write to any database** role. Write the password down;
+   Atlas will not show it again.
+4. **Network Access → Add IP Address.** Vercel and Render have no static
+   outbound IP on their free plans, so choose **Allow access from anywhere**
+   (`0.0.0.0/0`). That is safe only because your database user has a long
+   random password — Atlas still refuses anyone without it. If you self-host on
+   a box with a fixed IP, allow-list that one instead.
+5. **Connect → Drivers** and copy the connection string:
 
    ```
-   postgresql://user:password@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/paisa?sslmode=require
+   mongodb+srv://user:password@cluster0.xxxxx.mongodb.net/paisa?retryWrites=true&w=majority
    ```
 
-   Use the **pooled** one (it has `-pooler` in the host). Serverless functions
-   open and close connections constantly, and the pooler is what stops you from
-   hitting the connection limit.
+   **Add `/paisa` after the host**, as above. Atlas hands you the string without
+   a database name, and without one every collection lands in a database called
+   `test`.
 
-> Supabase and Render Postgres work too. Render's free database is deleted
-> after 30 days, so prefer Neon or Supabase if you want to keep your history.
-
-### Create the tables
+### Create the indexes
 
 The quickest path does all of this for you, including generating the auth
 secret and testing the connection before it writes anything:
@@ -73,8 +78,20 @@ If you would rather do it by hand, fill in `.env.local` and run:
 npm run db:migrate
 ```
 
-`schema.sql` is written with `IF NOT EXISTS` throughout, so running it again is
-harmless. Run it once now and again whenever you pull schema changes.
+MongoDB creates collections on first write, so there are no tables to build —
+`db:migrate` creates the indexes. `createIndex` is idempotent, so running it
+again is harmless. Run it once now and again whenever you pull changes.
+
+Then prove the database actually works, end to end:
+
+```bash
+npm run db:check
+```
+
+It writes, reads, checks that the money arithmetic is exact, runs a `$lookup`,
+rolls back a failed transaction, **and proves a duplicate bank reference is
+rejected** — then deletes everything it wrote. See
+[TESTING.md](TESTING.md#the-database-self-check) for what each line means.
 
 ---
 
@@ -90,7 +107,7 @@ harmless. Run it once now and again whenever you pull schema changes.
 
    | Name | Value |
    |---|---|
-   | `DATABASE_URL` | the pooled Neon string from step 1 |
+   | `MONGODB_URI` | the Atlas string from step 1, with `/paisa` on the end |
    | `AUTH_SECRET` | `openssl rand -base64 48` |
    | `ALLOWED_EMAILS` | *(optional)* your email, to stop strangers registering |
 
@@ -119,7 +136,7 @@ Some people would rather have a long-running server than serverless functions.
    repository.
 2. Render reads `render.yaml`, which already sets the root directory, the build
    and start commands, and `/api/health` as the health check.
-3. It will prompt you for `DATABASE_URL`. Paste the Neon string.
+3. It will prompt you for `MONGODB_URI`. Paste the Atlas string.
    `AUTH_SECRET` is generated for you and kept across deploys.
 4. Deploy.
 
@@ -136,7 +153,7 @@ anywhere else:
 ```bash
 docker build -t paisa .
 docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://…" \
+  -e MONGODB_URI="mongodb+srv://…/paisa" \
   -e AUTH_SECRET="…" \
   paisa
 ```
@@ -147,11 +164,11 @@ docker run -p 3000:3000 \
 
 | Name | Required | What it is |
 |---|---|---|
-| `DATABASE_URL` | yes | Postgres connection string. TLS is required unless the host is localhost |
+| `MONGODB_URI` | yes | MongoDB connection string. Put the database name on the end, or everything lands in `test` |
 | `AUTH_SECRET` | yes | Signs the session cookie. At least 16 characters; 48 random bytes is right. Changing it signs everyone out |
 | `ALLOWED_EMAILS` | no | Comma-separated allow-list for registration. Empty means anyone can sign up |
 | `SEED_EMAIL` / `SEED_PASSWORD` | no | Credentials the seed script creates |
-| `PG_POOL_MAX` | no | Connections per instance. Defaults to 5, which suits a free-tier database |
+| `MONGO_POOL_MAX` | no | Connections per instance. Defaults to 10; Atlas M0 allows 500 |
 | `BUILD_STANDALONE` | no | Set to `true` for the Docker build. Vercel and Render do not need it |
 
 ---
@@ -172,14 +189,15 @@ screen are always live.
 
 ## Keeping it healthy
 
-- **Backups.** Neon keeps point-in-time history on the free tier. For your own
-  copy, Settings → Your data exports every transaction and investment as CSV.
-- **Schema changes.** Pull, then `npm run db:migrate`. Nothing is destructive.
-- **Starting over.** `npm run db:reset` drops every table and rebuilds them.
-  It deletes everything — there is no undo.
-- **Costs.** Watch Neon's storage if you import years of statements. A decade of
-  one person's transactions is a few megabytes; the free 0.5 GB is not a real
-  limit here.
+- **Backups.** Atlas M0 does **not** include automated backups — that starts at
+  M10. So take your own: Settings → Your data exports every transaction and
+  investment as CSV, and `mongodump --uri "$MONGODB_URI"` writes a full dump you
+  can restore with `mongorestore`. Put that on a monthly reminder.
+- **Index changes.** Pull, then `npm run db:migrate`. Nothing is destructive.
+- **Starting over.** `npm run db:reset` drops every collection and recreates the
+  indexes. It deletes everything — there is no undo.
+- **Costs.** A decade of one person's transactions is a few megabytes; the free
+  0.5 GB is not a real limit here.
 
 ---
 
@@ -190,20 +208,31 @@ The Root Directory is not set to `expense-tracker`. Fix it in Project Settings �
 General.
 
 **`/api/health` says `database: false`**
-`DATABASE_URL` is missing, wrong, or lacks `?sslmode=require`. Check the value
-in your host's environment settings, then redeploy — environment changes do not
-apply to an already-running deployment.
+`MONGODB_URI` is missing or wrong, or Atlas is refusing the connection. Run
+`npm run db:check` locally with the same string — it says which of the two it
+is. Remember that environment changes do not apply to an already-running
+deployment; redeploy after changing one.
+
+**`MongoServerSelectionError: ... ETIMEDOUT` from Vercel or Render**
+Network Access in Atlas does not allow the host. Add `0.0.0.0/0` (step 1.4).
+This is the single most common cause.
+
+**`bad auth : Authentication failed`**
+The username or password in the URI is wrong, or the password contains
+characters that need URL-encoding (`@`, `:`, `/`, `#` — percent-encode them).
 
 **Every request returns 503 mentioning `AUTH_SECRET`**
 The variable is unset or shorter than 16 characters.
 
-**"relation \"users\" does not exist"**
-You never ran `npm run db:migrate` against this database.
+**Your data is there but the app shows nothing**
+The URI has no database name, so writes went to `test` and reads look in
+`paisa` (or the reverse). Put `/paisa` before the `?` and redeploy.
 
 **Signed out constantly**
 `AUTH_SECRET` is changing between deploys. On Render, make sure it is
 `generateValue: true` (stored once) rather than something regenerated per build.
 
-**Neon says "too many connections"**
-You are using the direct connection string. Switch to the pooled one, or lower
-`PG_POOL_MAX`.
+**`Transaction numbers are only allowed on a replica set member or mongos`**
+You are on a standalone `mongod`. Atlas is always a replica set, so this only
+happens locally — the app falls back to sequential writes, but see
+[TESTING.md](TESTING.md) for running a local single-node replica set instead.

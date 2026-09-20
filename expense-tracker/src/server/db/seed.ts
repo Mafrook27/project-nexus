@@ -1,14 +1,32 @@
 /**
  * Fills a fresh database with a believable year of data so every screen has
- * something to show. Safe to re-run: it wipes and rebuilds the seed user only.
+ * something to show. Safe to re-run: it removes and rebuilds the seed user.
  *
  *   npm run db:seed
  */
 import './env';
 import bcrypt from 'bcryptjs';
-import { closePool, query } from './client';
-import { DEFAULT_CATEGORIES } from '../../lib/constants';
-import type { NeedLevel } from '../../lib/constants';
+import { DEFAULT_CATEGORIES, type NeedLevel } from '../../lib/constants';
+import {
+  accounts,
+  budgets,
+  categories,
+  closeClient,
+  goals,
+  investments,
+  liabilities,
+  merchantRules,
+  money,
+  newId,
+  people,
+  recurring,
+  sips,
+  transactions,
+  users,
+  type TransactionDoc,
+} from './mongo';
+import { ensureIndexes } from './indexes';
+import { deleteEverythingFor } from './wipe';
 
 const EMAIL = process.env.SEED_EMAIL ?? 'demo@paisa.app';
 const PASSWORD = process.env.SEED_PASSWORD ?? 'demo1234';
@@ -17,91 +35,95 @@ const NAME = process.env.SEED_NAME ?? 'Demo';
 const rand = (min: number, max: number) => Math.round(min + Math.random() * (max - min));
 const pick = <T>(list: T[]): T => list[Math.floor(Math.random() * list.length)];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+const now = new Date();
 
 async function main() {
   console.log(`· seeding ${EMAIL}`);
-  await query('DELETE FROM users WHERE email = $1', [EMAIL]);
+  await ensureIndexes();
 
-  const hash = await bcrypt.hash(PASSWORD, 10);
-  const [user] = await query<{ id: string }>(
-    `INSERT INTO users (email, name, password_hash, currency, settings)
-     VALUES ($1, $2, $3, 'INR', $4::jsonb) RETURNING id`,
-    [
-      EMAIL,
-      NAME,
-      hash,
-      JSON.stringify({
-        current_age: 29,
-        retire_age: 48,
-        monthly_expenses: 62000,
-        monthly_investment: 55000,
-        inflation: 6,
-        pre_retirement_return: 12,
-        post_retirement_return: 8,
-        withdrawal_rate: 4,
-        emergency_months: 6,
-        expense_ratio_in_retirement: 85,
-      }),
-    ],
-  );
-  const userId = user.id;
+  const existing = await users().findOne({ email: EMAIL });
+  if (existing) await deleteEverythingFor(existing._id);
+
+  const userId = newId();
+  await users().insertOne({
+    _id: userId,
+    email: EMAIL,
+    name: NAME,
+    password_hash: await bcrypt.hash(PASSWORD, 10),
+    currency: 'INR',
+    settings: {
+      current_age: 29,
+      retire_age: 48,
+      monthly_expenses: 62000,
+      monthly_investment: 55000,
+      inflation: 6,
+      pre_retirement_return: 12,
+      post_retirement_return: 8,
+      withdrawal_rate: 4,
+      emergency_months: 6,
+      expense_ratio_in_retirement: 85,
+    },
+    created_at: now,
+  });
 
   // People -------------------------------------------------------------
-  const people = await query<{ id: string; name: string }>(
-    `INSERT INTO people (user_id, name, relation, color) VALUES
-       ($1, $2, 'self', '#2a78d6'),
-       ($1, 'Mother', 'mother', '#eb6834'),
-       ($1, 'Father', 'father', '#1baf7a')
-     RETURNING id, name`,
-    [userId, NAME],
-  );
-  const me = people[0].id;
-  const mother = people[1].id;
-  const father = people[2].id;
+  const me = newId();
+  const mother = newId();
+  const father = newId();
+  await people().insertMany([
+    { _id: me, user_id: userId, name: NAME, relation: 'self', color: '#2a78d6', created_at: now },
+    { _id: mother, user_id: userId, name: 'Mother', relation: 'mother', color: '#eb6834', created_at: now },
+    { _id: father, user_id: userId, name: 'Father', relation: 'father', color: '#1baf7a', created_at: now },
+  ]);
 
   // Categories ---------------------------------------------------------
-  const catValues: unknown[] = [userId];
-  const catTuples = DEFAULT_CATEGORIES.map((c) => {
-    const base = catValues.length;
-    catValues.push(c.name, c.kind, c.bucket, c.icon, c.color, c.need);
-    return `($1, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
-  });
-  const categories = await query<{
-    id: string;
-    name: string;
-    kind: string;
-    bucket: string;
-    default_need_level: NeedLevel;
-  }>(
-    `INSERT INTO categories (user_id, name, kind, bucket, icon, color, default_need_level)
-     VALUES ${catTuples.join(', ')}
-     RETURNING id, name, kind, bucket, default_need_level`,
-    catValues,
-  );
-  const catBy = (name: string) => categories.find((c) => c.name === name)!.id;
-  const expenseCats = categories.filter((c) => c.kind === 'expense');
+  const categoryDocs = DEFAULT_CATEGORIES.map((c) => ({
+    _id: newId(),
+    user_id: userId,
+    name: c.name,
+    kind: c.kind,
+    bucket: c.bucket,
+    default_need_level: c.need,
+    icon: c.icon,
+    color: c.color,
+    created_at: now,
+  }));
+  await categories().insertMany(categoryDocs);
+  const catBy = (name: string) => categoryDocs.find((c) => c.name === name)!._id;
+  const expenseCats = categoryDocs.filter((c) => c.kind === 'expense');
 
   // Accounts -----------------------------------------------------------
-  const accounts = await query<{ id: string; name: string }>(
-    `INSERT INTO accounts (user_id, person_id, name, type, institution, opening_balance, is_emergency)
-     VALUES
-       ($1, $2, 'HDFC Salary',      'bank',        'HDFC Bank',  85000,  false),
-       ($1, $2, 'ICICI Savings',    'bank',        'ICICI Bank', 420000, true),
-       ($1, $2, 'Cash wallet',      'cash',        NULL,         6000,   false),
-       ($1, $2, 'UPI / Paytm',      'wallet',      'Paytm',      3500,   false),
-       ($1, $2, 'HDFC Regalia',     'credit_card', 'HDFC Bank',  0,      false),
-       ($1, $3, 'SBI Savings (Mom)','bank',        'SBI',        310000, false)
-     RETURNING id, name`,
-    [userId, me, mother],
-  );
-  const salary = accounts[0].id;
-  const savings = accounts[1].id;
-  const cash = accounts[2].id;
-  const upi = accounts[3].id;
-  const card = accounts[4].id;
+  const acc = (
+    name: string,
+    type: string,
+    institution: string | null,
+    opening: number,
+    emergency: boolean,
+    owner: string,
+    last4: string | null,
+  ) => ({
+    _id: newId(),
+    user_id: userId,
+    person_id: owner,
+    name,
+    type,
+    institution,
+    opening_balance: opening,
+    last4,
+    is_emergency: emergency,
+    archived: false,
+    created_at: now,
+  });
+
+  const salary = acc('HDFC Salary', 'bank', 'HDFC Bank', 85000, false, me, '1234');
+  const savings = acc('ICICI Savings', 'bank', 'ICICI Bank', 420000, true, me, '4321');
+  const cash = acc('Cash wallet', 'cash', null, 6000, false, me, null);
+  const upi = acc('UPI / Paytm', 'wallet', 'Paytm', 3500, false, me, null);
+  const card = acc('HDFC Regalia', 'credit_card', 'HDFC Bank', 0, false, me, '9012');
+  const momAccount = acc('SBI Savings (Mom)', 'bank', 'SBI', 310000, false, mother, '5678');
+  await accounts().insertMany([salary, savings, cash, upi, card, momAccount]);
 
   // Twelve months of transactions --------------------------------------
-  const today = new Date();
   const merchants: Record<string, string[]> = {
     Groceries: ['BigBasket', 'DMart', 'Local kirana', 'Zepto'],
     'Food & dining': ['Swiggy', 'Zomato', 'Third Wave Coffee', 'Local restaurant'],
@@ -121,54 +143,66 @@ async function main() {
     Misc: ['Sundry', 'Unplanned', 'Odds and ends'],
   };
 
-  let inserted = 0;
+  const docs: TransactionDoc[] = [];
+  const txn = (over: Partial<TransactionDoc> & { amount: number; txn_date: string }) => {
+    docs.push({
+      _id: newId(),
+      user_id: userId,
+      account_id: salary._id,
+      to_account_id: null,
+      category_id: null,
+      person_id: me,
+      type: 'expense',
+      bucket: 'personal',
+      need_level: 'need',
+      merchant: null,
+      note: null,
+      reason: null,
+      source: 'manual',
+      status: 'confirmed',
+      payment_method: 'unknown',
+      bank: null,
+      account_last4: null,
+      raw_reference: null,
+      raw_message: null,
+      created_at: now,
+      updated_at: now,
+      ...over,
+      amount: money(over.amount),
+      transaction_at: new Date(`${over.txn_date}T12:00:00`),
+    } as TransactionDoc);
+  };
+
   for (let back = 11; back >= 0; back--) {
-    const monthDate = new Date(today.getFullYear(), today.getMonth() - back, 1);
+    const monthDate = new Date(now.getFullYear(), now.getMonth() - back, 1);
     const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
-    const cap = back === 0 ? Math.min(today.getDate(), daysInMonth) : daysInMonth;
+    const cap = back === 0 ? Math.min(now.getDate(), daysInMonth) : daysInMonth;
+    const day = (d: number) => iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), d));
 
-    // Salary on the 1st
-    await query(
-      `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, amount, txn_date, merchant)
-       VALUES ($1,$2,$3,$4,'income','personal',$5,$6,'Monthly salary')`,
-      [
-        userId,
-        salary,
-        catBy('Salary'),
-        me,
-        150000 + back * -800 + rand(-2000, 2000),
-        iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)),
-      ],
-    );
-    inserted++;
+    txn({
+      type: 'income',
+      category_id: catBy('Salary'),
+      amount: 150000 + back * -800 + rand(-2000, 2000),
+      txn_date: day(1),
+      merchant: 'Monthly salary',
+    });
 
-    // Rent and fixed home costs
-    const fixed: [string, number, string][] = [
+    for (const [catName, amount, merchant] of [
       ['Rent / EMI', 32000, 'Landlord'],
       ['Utilities', rand(2200, 4200), pick(merchants.Utilities)],
       ['Household help', 4500, 'Help'],
       ['Insurance', 3200, 'HDFC Life'],
-    ];
-    for (const [catName, amount, merchant] of fixed) {
-      await query(
-        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, need_level, amount, txn_date, merchant)
-         VALUES ($1,$2,$3,$4,'expense','home','need',$5,$6,$7)`,
-        [
-          userId,
-          salary,
-          catBy(catName),
-          me,
-          amount,
-          iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), rand(2, 6))),
-          merchant,
-        ],
-      );
-      inserted++;
+    ] as [string, number, string][]) {
+      txn({
+        bucket: 'home',
+        category_id: catBy(catName),
+        amount,
+        txn_date: day(rand(2, 6)),
+        merchant,
+      });
     }
 
-    // Everyday spending
-    const count = rand(26, 40);
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < rand(26, 40); i++) {
       const cat = pick(expenseCats);
       const names = merchants[cat.name] ?? [cat.name];
       const amount =
@@ -179,183 +213,252 @@ async function main() {
             : cat.name === 'Education'
               ? rand(1500, 9000)
               : rand(90, 2400);
-      // Roughly a fifth of the "nice to have" spending is money you would take
-      // back if you could - which is exactly what the leaks card is for.
+      // Roughly a fifth of "nice to have" spending is money you would take
+      // back if you could, which is what the leaks card is for.
       const level: NeedLevel =
-        cat.default_need_level === 'want' && Math.random() < 0.28 ? 'waste' : cat.default_need_level;
-
-      await query(
-        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, need_level, amount, txn_date, merchant)
-         VALUES ($1,$2,$3,$4,'expense',$5,$6,$7,$8,$9)`,
-        [
-          userId,
-          pick([salary, upi, cash, card]),
-          cat.id,
-          me,
-          cat.bucket,
-          level,
-          amount,
-          iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), rand(1, cap))),
-          pick(names),
-        ],
-      );
-      inserted++;
+        cat.default_need_level === 'want' && Math.random() < 0.28
+          ? 'waste'
+          : (cat.default_need_level as NeedLevel);
+      txn({
+        account_id: pick([salary._id, upi._id, cash._id, card._id]),
+        category_id: cat._id,
+        bucket: cat.bucket,
+        need_level: level,
+        amount,
+        txn_date: day(rand(1, cap)),
+        merchant: pick(names),
+      });
     }
 
-    // Money moved into savings
-    await query(
-      `INSERT INTO transactions (user_id, account_id, to_account_id, person_id, type, bucket, amount, txn_date, merchant)
-       VALUES ($1,$2,$3,$4,'transfer','personal',$5,$6,'To savings')`,
-      [
-        userId,
-        salary,
-        savings,
-        me,
-        rand(20000, 45000),
-        iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), Math.min(5, cap))),
-      ],
-    );
-    inserted++;
+    txn({
+      type: 'transfer',
+      account_id: salary._id,
+      to_account_id: savings._id,
+      amount: rand(20000, 45000),
+      txn_date: day(Math.min(5, cap)),
+      merchant: 'To savings',
+    });
   }
 
-  // Investments --------------------------------------------------------
-  await query(
-    `INSERT INTO investments
-       (user_id, person_id, name, type, symbol, units, avg_price, last_price, invested, current_value, start_date, liquid)
-     VALUES
-       ($1,$2,'Parag Parikh Flexi Cap','mutual_fund',NULL,NULL,NULL,NULL,680000,912000,'2021-04-05',true),
-       ($1,$2,'Nifty 50 Index Fund','mutual_fund',NULL,NULL,NULL,NULL,420000,538000,'2022-01-10',true),
-       ($1,$2,'HDFC Bank','stock','HDFCBANK',120,1450,1682,174000,201840,'2022-06-15',true),
-       ($1,$2,'Infosys','stock','INFY',90,1320,1498,118800,134820,'2023-02-20',true),
-       ($1,$2,'ITC','stock','ITC',200,398,441,79600,88200,'2023-07-01',true),
-       ($1,$2,'Tata Motors','stock','TATAMOTORS',75,720,655,54000,49125,'2024-01-08',true),
-       ($1,$2,'EPF','epf',NULL,NULL,NULL,NULL,540000,612000,'2019-07-01',false),
-       ($1,$2,'PPF','ppf',NULL,NULL,NULL,NULL,300000,352000,'2020-04-01',false),
-       ($1,$2,'Sovereign Gold Bond','gold',NULL,NULL,NULL,NULL,150000,198000,'2021-09-12',true),
-       ($1,$3,'SBI Bluechip (Mom)','mutual_fund',NULL,NULL,NULL,NULL,260000,318000,'2020-11-01',true),
-       ($1,$3,'Bank FD (Mom)','fd',NULL,NULL,NULL,NULL,500000,548000,'2023-03-01',true),
-       ($1,$4,'Senior Citizen FD (Dad)','fd',NULL,NULL,NULL,NULL,900000,1012000,'2022-08-01',true),
-       ($1,$4,'LIC Endowment (Dad)','other',NULL,NULL,NULL,NULL,240000,268000,'2018-05-01',false)`,
-    [userId, me, mother, father],
-  );
-
-  // SIPs ---------------------------------------------------------------
-  await query(
-    `INSERT INTO sips (user_id, person_id, name, amount, day_of_month, expected_return, step_up_pct, start_date)
-     VALUES
-       ($1,$2,'Parag Parikh Flexi Cap',25000,5,13,10,'2021-04-05'),
-       ($1,$2,'Nifty 50 Index Fund',20000,5,12,10,'2022-01-10'),
-       ($1,$2,'Nifty Next 50',10000,10,13,0,'2023-06-05'),
-       ($1,$3,'SBI Bluechip (Mom)',5000,15,11,0,'2020-11-01')`,
-    [userId, me, mother],
-  );
-
-  // Budgets, bills, loans, goals ---------------------------------------
-  const budgets: [string, number][] = [
-    ['Groceries', 14000],
-    ['Food & dining', 9000],
-    ['Transport & fuel', 6000],
-    ['Shopping', 8000],
-    ['Subscriptions', 2000],
-    ['Entertainment', 3000],
-    ['Utilities', 5000],
-  ];
-  for (const [name, amount] of budgets) {
-    await query(
-      `INSERT INTO budgets (user_id, category_id, month, amount) VALUES ($1,$2,'default',$3)`,
-      [userId, catBy(name), amount],
-    );
-  }
-
-  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 3);
-  await query(
-    `INSERT INTO recurring (user_id, account_id, category_id, name, amount, type, bucket, frequency, next_due)
-     VALUES
-       ($1,$2,$3,'House rent',32000,'expense','home','monthly',$6),
-       ($1,$2,$4,'Broadband + mobile',1899,'expense','home','monthly',$7),
-       ($1,$2,$5,'Netflix + Spotify',848,'expense','personal','monthly',$8),
-       ($1,$2,$9,'Term insurance premium',21000,'expense','home','yearly',$10)`,
-    [
-      userId,
-      salary,
-      catBy('Rent / EMI'),
-      catBy('Utilities'),
-      catBy('Subscriptions'),
-      iso(nextMonth),
-      iso(new Date(today.getFullYear(), today.getMonth(), 18)),
-      iso(new Date(today.getFullYear(), today.getMonth(), 22)),
-      catBy('Insurance'),
-      iso(new Date(today.getFullYear() + 1, 2, 12)),
-    ],
-  );
-
-  await query(
-    `INSERT INTO liabilities (user_id, person_id, name, type, principal, outstanding, interest_rate, emi, end_date)
-     VALUES ($1,$2,'Car loan','loan',800000,412000,9.25,16800,'2028-05-10')`,
-    [userId, me],
-  );
-
-  await query(
-    `INSERT INTO goals (user_id, name, kind, target_amount, saved_amount, monthly_contribution, target_date)
-     VALUES
-       ($1,'Emergency fund','emergency',420000,420000,0,NULL),
-       ($1,'House down payment','purchase',2500000,640000,35000,$2),
-       ($1,'Parents'' health buffer','custom',1000000,280000,10000,$3),
-       ($1,'Japan trip','purchase',350000,96000,8000,$4)`,
-    [
-      userId,
-      iso(new Date(today.getFullYear() + 4, today.getMonth(), 1)),
-      iso(new Date(today.getFullYear() + 3, today.getMonth(), 1)),
-      iso(new Date(today.getFullYear() + 1, today.getMonth() + 6, 1)),
-    ],
-  );
-
-  // A few spends "detected by the phone", so the review queue is not empty on
-  // a fresh demo. One has no merchant, which is the case worth designing for.
-  const detected: [number, string | null, string, string, string, number][] = [
+  // A few spends "detected by the phone", so the review queue is not empty.
+  for (const [amount, merchant, method, bank, last4, hoursAgo] of [
     [1250, 'Amazon', 'upi', 'HDFC Bank', '1234', 2],
     [420, 'Swiggy', 'upi', 'HDFC Bank', '1234', 6],
     [780, null, 'card', 'HDFC Bank', '9012', 26],
-  ];
-  for (const [amount, merchant, method, bank, last4, hoursAgo] of detected) {
+  ] as [number, string | null, string, string, string, number][]) {
     const when = new Date(Date.now() - hoursAgo * 3600_000);
-    await query(
-      `INSERT INTO transactions
-         (user_id, account_id, person_id, type, bucket, need_level, amount, txn_date,
-          transaction_at, merchant, source, status, payment_method, bank, account_last4,
-          raw_reference)
-       VALUES ($1,$2,$3,'expense','personal','need',$4,$5::timestamptz::date,$5,$6,
-               'sms','detected',$7,$8,$9,$10)`,
-      [
-        userId,
-        salary,
-        me,
-        amount,
-        when.toISOString(),
-        merchant,
-        method,
-        bank,
-        last4,
-        `SEED${Math.floor(Math.random() * 1e12)}`,
-      ],
-    );
+    docs.push({
+      _id: newId(),
+      user_id: userId,
+      account_id: salary._id,
+      to_account_id: null,
+      category_id: null,
+      person_id: me,
+      type: 'expense',
+      bucket: 'personal',
+      need_level: 'need',
+      amount,
+      txn_date: iso(when),
+      transaction_at: when,
+      merchant,
+      note: null,
+      reason: null,
+      source: 'sms',
+      status: 'detected',
+      payment_method: method,
+      bank,
+      account_last4: last4,
+      raw_reference: `SEED${Math.floor(Math.random() * 1e12)}`,
+      raw_message: null,
+      created_at: now,
+      updated_at: now,
+    });
   }
 
-  // One rule already learned, so the Settings card shows what it looks like.
-  await query(
-    `INSERT INTO merchant_rules (user_id, pattern, match_type, category_id, bucket, need_level, auto_confirm, hits)
-     VALUES ($1, 'Swiggy', 'contains', $2, 'personal', 'want', true, 4)
-     ON CONFLICT (user_id, pattern, match_type) DO NOTHING`,
-    [userId, catBy('Food & dining')],
+  await transactions().insertMany(docs, { ordered: false });
+
+  // Investments, SIPs, budgets, bills, loans, goals ---------------------
+  const inv = (
+    person: string,
+    name: string,
+    type: string,
+    invested: number,
+    current: number,
+    start: string | null,
+    liquid: boolean,
+  ) => ({
+    _id: newId(),
+    user_id: userId,
+    person_id: person,
+    name,
+    type,
+    symbol: null,
+    units: null,
+    avg_price: null,
+    last_price: null,
+    invested,
+    current_value: current,
+    start_date: start,
+    maturity_date: null,
+    liquid,
+    notes: null,
+    updated_at: now,
+    created_at: now,
+  });
+
+  const stock = (name: string, symbol: string, units: number, avg: number, last: number, start: string) => ({
+    ...inv(me, name, 'stock', money(units * avg), money(units * last), start, true),
+    symbol,
+    units,
+    avg_price: avg,
+    last_price: last,
+  });
+
+  await investments().insertMany([
+    inv(me, 'Parag Parikh Flexi Cap', 'mutual_fund', 680000, 912000, '2021-04-05', true),
+    inv(me, 'Nifty 50 Index Fund', 'mutual_fund', 420000, 538000, '2022-01-10', true),
+    stock('HDFC Bank', 'HDFCBANK', 120, 1450, 1682, '2022-06-15'),
+    stock('Infosys', 'INFY', 90, 1320, 1498, '2023-02-20'),
+    stock('ITC', 'ITC', 200, 398, 441, '2023-07-01'),
+    stock('Tata Motors', 'TATAMOTORS', 75, 720, 655, '2024-01-08'),
+    inv(me, 'EPF', 'epf', 540000, 612000, '2019-07-01', false),
+    inv(me, 'PPF', 'ppf', 300000, 352000, '2020-04-01', false),
+    inv(me, 'Sovereign Gold Bond', 'gold', 150000, 198000, '2021-09-12', true),
+    inv(mother, 'SBI Bluechip (Mom)', 'mutual_fund', 260000, 318000, '2020-11-01', true),
+    inv(mother, 'Bank FD (Mom)', 'fd', 500000, 548000, '2023-03-01', true),
+    inv(father, 'Senior Citizen FD (Dad)', 'fd', 900000, 1012000, '2022-08-01', true),
+    inv(father, 'LIC Endowment (Dad)', 'other', 240000, 268000, '2018-05-01', false),
+  ]);
+
+  await sips().insertMany(
+    [
+      [me, 'Parag Parikh Flexi Cap', 25000, 5, 13, 10, '2021-04-05'],
+      [me, 'Nifty 50 Index Fund', 20000, 5, 12, 10, '2022-01-10'],
+      [me, 'Nifty Next 50', 10000, 10, 13, 0, '2023-06-05'],
+      [mother, 'SBI Bluechip (Mom)', 5000, 15, 11, 0, '2020-11-01'],
+    ].map(([person, name, amount, day, ret, step, start]) => ({
+      _id: newId(),
+      user_id: userId,
+      person_id: person as string,
+      investment_id: null,
+      name: name as string,
+      amount: amount as number,
+      day_of_month: day as number,
+      expected_return: ret as number,
+      step_up_pct: step as number,
+      start_date: start as string,
+      active: true,
+      created_at: now,
+    })),
   );
 
-  console.log(`✓ seeded ${inserted} transactions, 13 investments, 4 SIPs, 4 goals`);
+  await budgets().insertMany(
+    ([
+      ['Groceries', 14000],
+      ['Food & dining', 9000],
+      ['Transport & fuel', 6000],
+      ['Shopping', 8000],
+      ['Subscriptions', 2000],
+      ['Entertainment', 3000],
+      ['Utilities', 5000],
+    ] as [string, number][]).map(([name, amount]) => ({
+      _id: newId(),
+      user_id: userId,
+      category_id: catBy(name),
+      month: 'default',
+      amount,
+    })),
+  );
+
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 3);
+  await recurring().insertMany([
+    bill('House rent', 32000, catBy('Rent / EMI'), 'home', 'monthly', iso(nextMonth)),
+    bill('Broadband + mobile', 1899, catBy('Utilities'), 'home', 'monthly', iso(new Date(now.getFullYear(), now.getMonth(), 18))),
+    bill('Netflix + Spotify', 848, catBy('Subscriptions'), 'personal', 'monthly', iso(new Date(now.getFullYear(), now.getMonth(), 22))),
+    bill('Term insurance premium', 21000, catBy('Insurance'), 'home', 'yearly', iso(new Date(now.getFullYear() + 1, 2, 12))),
+  ]);
+
+  function bill(
+    name: string,
+    amount: number,
+    categoryId: string,
+    bucket: 'home' | 'personal',
+    frequency: string,
+    nextDue: string,
+  ) {
+    return {
+      _id: newId(),
+      user_id: userId,
+      account_id: salary._id,
+      category_id: categoryId,
+      name,
+      amount,
+      type: 'expense' as const,
+      bucket,
+      frequency,
+      next_due: nextDue,
+      active: true,
+      created_at: now,
+    };
+  }
+
+  await liabilities().insertOne({
+    _id: newId(),
+    user_id: userId,
+    person_id: me,
+    name: 'Car loan',
+    type: 'loan',
+    principal: 800000,
+    outstanding: 412000,
+    interest_rate: 9.25,
+    emi: 16800,
+    end_date: '2028-05-10',
+    created_at: now,
+  });
+
+  await goals().insertMany(
+    ([
+      ['Emergency fund', 'emergency', 420000, 420000, 0, null],
+      ['House down payment', 'purchase', 2500000, 640000, 35000, iso(new Date(now.getFullYear() + 4, now.getMonth(), 1))],
+      ["Parents' health buffer", 'custom', 1000000, 280000, 10000, iso(new Date(now.getFullYear() + 3, now.getMonth(), 1))],
+      ['Japan trip', 'purchase', 350000, 96000, 8000, iso(new Date(now.getFullYear() + 1, now.getMonth() + 6, 1))],
+    ] as [string, string, number, number, number, string | null][]).map(
+      ([name, kind, target, saved, monthly, date]) => ({
+        _id: newId(),
+        user_id: userId,
+        name,
+        kind,
+        target_amount: target,
+        saved_amount: saved,
+        monthly_contribution: monthly,
+        target_date: date,
+        created_at: now,
+      }),
+    ),
+  );
+
+  await merchantRules().insertOne({
+    _id: newId(),
+    user_id: userId,
+    pattern: 'Swiggy',
+    match_type: 'contains',
+    category_id: catBy('Food & dining'),
+    bucket: 'personal',
+    need_level: 'want',
+    auto_confirm: true,
+    hits: 4,
+    last_used_at: now,
+    created_at: now,
+  });
+
+  console.log(`✓ seeded ${docs.length} transactions, 13 investments, 4 SIPs, 4 goals`);
   console.log('  plus 3 detected spends waiting in Needs a look');
   console.log(`  sign in with ${EMAIL} / ${PASSWORD}`);
-  await closePool();
+  await closeClient();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('✗ seed failed:', err.message);
+  await closeClient().catch(() => {});
   process.exit(1);
 });

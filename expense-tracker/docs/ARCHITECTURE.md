@@ -8,15 +8,15 @@ Notes for the next person to open this codebase — probably you, in six months.
 
 One Next.js app on the App Router. React Server Components render the shell and
 check the session; the pages themselves are client components that talk to this
-app's own `/api` routes. Postgres holds everything.
+app's own `/api` routes. MongoDB holds everything.
 
 ```
 browser ──▶ src/proxy.ts            cookie present? if not, /login
         ──▶ src/app/(app)/layout    verifies the JWT signature for real
         ──▶ page (client component) fetches /api/…
               └─▶ src/app/api/…     route handler
-                    └─▶ features/x/service.ts   SQL
-                          └─▶ server/db/client  pooled pg
+                    └─▶ features/x/service.ts   queries, pipelines
+                          └─▶ server/db/mongo   pooled driver
 ```
 
 There is no separate API server, no ORM and no state-management library. For an
@@ -30,16 +30,16 @@ The alternative — `components/`, `hooks/`, `types/`, `api/` at the top level �
 means one change to "how investments work" touches four directories and you have
 to hold the whole app in your head to find anything.
 
-Here, `features/investments/` contains the validation, the types, the SQL, the
-REST config and the screens. Deleting the feature means deleting the folder.
+Here, `features/investments/` contains the validation, the types, the queries,
+the REST config and the screens. Deleting the feature means deleting the folder.
 
 Each feature folder uses the same five names:
 
 | File | Runs where | Holds |
 |---|---|---|
 | `schema.ts` | both | zod validation and the row's TypeScript type |
-| `crud.ts` | server | the table config for the generic REST factory |
-| `service.ts` | server only | SQL that needs real logic (joins, aggregates) |
+| `crud.ts` | server | the collection config for the generic REST factory |
+| `service.ts` | server only | queries that need real logic (lookups, aggregates) |
 | `components/` | browser | the screens and dialogs |
 | `calc.ts` / `math.ts` | both | pure functions, no React and no database |
 
@@ -55,19 +55,19 @@ balances — it imports that feature's `service.ts`, which is its public face.
 
 ## The CRUD factory
 
-Nine of the tables are "a list of rows that belong to the signed-in user".
-Writing four handlers nine times would be five hundred lines of code where
-every line is a chance to forget `WHERE user_id = $1`.
+Nine of the collections are "a list of documents that belong to the signed-in
+user". Writing four handlers nine times would be five hundred lines of code
+where every line is a chance to forget `user_id`.
 
-Instead, `server/crud.ts` takes a table description:
+Instead, `server/crud.ts` takes a collection description:
 
 ```ts
 export const goalsCrud: CrudConfig = {
-  table: 'goals',
+  collection: 'goals',
   columns: ['name', 'kind', 'target_amount', 'saved_amount', 'monthly_contribution', 'target_date'],
   createSchema: goalSchema,
   updateSchema: goalUpdateSchema,
-  orderBy: 'target_date NULLS LAST, name',
+  sort: { target_date: 1, name: 1 },
 };
 ```
 
@@ -79,14 +79,29 @@ export const { GET, POST } = collectionRoutes(goalsCrud);
 
 Two properties make this safe:
 
-- **`table` and `columns` are written in code**, never taken from a request. The
-  only values that reach SQL from a client are bound parameters.
-- **Every generated query carries `user_id`**, on reads and writes alike. There
-  is one place to get that right rather than thirty-six.
+- **`collection` and `columns` are written in code**, never taken from a
+  request. A client cannot name a field the factory will write, so no request
+  body can set `user_id` on a document or reach a collection it was not meant
+  to.
+- **Every generated query carries `user_id`**, on reads and writes alike — the
+  filter is built by the factory, not passed in. There is one place to get that
+  right rather than thirty-six.
 
 Features that need more than this skip the factory. `transactions` has its own
-route because filtering needs a dynamic `WHERE` clause; `dashboard` has a
-service that runs thirteen queries in parallel.
+route because filtering builds the match stage dynamically; `dashboard` runs
+one `$facet` pipeline in place of nine separate reads.
+
+### What replaced `ON DELETE CASCADE`
+
+Postgres cleaned up after a delete in the engine. MongoDB has no foreign keys,
+so the same rules live in one `CASCADES` map at the top of `server/crud.ts`:
+deleting a person unsets `person_id` on five collections, deleting a category
+unsets it on transactions and clears the budgets and merchant rules that pointed
+at it.
+
+Keeping them in one table-driven map rather than scattered through each
+feature's delete handler is deliberate — a cascade you forget somewhere is an
+orphaned row that shows up later as a blank name on a dashboard.
 
 ---
 
@@ -107,8 +122,9 @@ users ──┬── people ──────┬── accounts ──┐
 Two decisions to know about:
 
 **Balances are derived, never stored.** `accounts.opening_balance` plus the sum
-of everything that has moved through the account. The SQL for it lives in
-`features/accounts/service.ts` as `ACCOUNT_BALANCE_SQL` and is reused wherever a
+of everything that has moved through the account. The pipeline for it lives in
+`features/accounts/pipelines.ts` as `accountMovementLookup()` — a correlated
+`$lookup` that sums the movements for each account — and is reused wherever a
 balance is needed. Editing an old transaction therefore corrects every screen,
 with no recalculation job to run and no chance of drifting out of sync.
 
@@ -130,13 +146,18 @@ genuinely different, and the split only works if you can override it per entry.
 
 ## The money type
 
-Postgres returns `numeric` as a string to protect precision. Rather than
-sprinkling `Number(...)` across every feature, `server/db/client.ts` registers a
-type parser once, so `numeric` and `int8` arrive as JavaScript numbers.
+Postgres stored money as `numeric(16,2)` — exact decimal. MongoDB stores a
+JavaScript number, which is a float, so `0.1 + 0.2` would drift if nothing
+stopped it.
 
-This is safe here: `numeric(16,2)` up to a few crore is nowhere near
-`Number.MAX_SAFE_INTEGER`. If this ever became a ledger for a business, the
-right move would be integer paise and a decimal library — not float rupees.
+What stops it: `money()` in `server/db/mongo.ts` rounds every amount to two
+decimals on the way in and after every sum, and `npm run db:check` asserts that
+the round trip still produces exactly `0.3`. Rupees-and-paise up to a few crore
+sit far inside the range a double represents exactly, so this holds.
+
+If this ever became a ledger for a business, the right move would be integer
+paise or `Decimal128` — not float rupees. For one person's spending it is not
+worth the friction of a type that every chart and form would have to unwrap.
 
 Input goes the other way. `lib/validation.ts` runs every money field through
 `parseAmount`, so the API accepts `1,250`, `₹1,20,000` and `12k`. Forms should
@@ -193,8 +214,8 @@ document: **docs/TRANSACTION-INTELLIGENCE.md**.
 Two things to know from here. `features/transactions/parsers/` deliberately
 imports nothing from React, Node or the database, so the Android companion can
 use it unchanged. And every money query in the app filters
-`status <> 'ignored'` — a row the user rejected stays in the table for the
-audit trail but is not money.
+`status: { $ne: 'ignored' }` — a row the user rejected stays in the collection
+for the audit trail but is not money.
 
 ## Loading states
 
@@ -220,9 +241,10 @@ entirely under `prefers-reduced-motion`.
 Say you want to track insurance policies.
 
 1. `src/features/insurance/schema.ts` — a zod schema and a `Policy` type.
-2. Add the table to `src/server/db/schema.sql` with `user_id` and
-   `ON DELETE CASCADE`, then `npm run db:migrate`.
-3. `src/features/insurance/crud.ts` — the table config.
+2. Add the collection and its indexes to `src/server/db/indexes.ts` (always
+   lead the key with `user_id`), add any cascade it needs to the `CASCADES` map
+   in `src/server/crud.ts`, then `npm run db:migrate`.
+3. `src/features/insurance/crud.ts` — the collection config.
 4. `src/app/api/insurance/route.ts` and `[id]/route.ts` — four lines each.
 5. `src/features/insurance/components/InsuranceView.tsx` — the screen.
 6. `src/app/(app)/insurance/page.tsx` — export the view.
@@ -236,9 +258,11 @@ If it needs a derived number on the dashboard, add a query to
 
 ## What was deliberately left out
 
-- **An ORM.** The queries here are short and the schema is stable. Raw SQL with
-  bound parameters is easier to read than a query builder, and it is what you
-  would paste into psql to debug anyway.
+- **Mongoose, and ODMs generally.** The official driver already speaks the
+  query language, and the documents here are validated by zod before they are
+  written — a second schema layer would be the same rules stated twice, free to
+  disagree. What is in `server/crud.ts` is what you would paste into `mongosh`
+  to debug anyway.
 - **A data-fetching library.** `hooks/useResource.ts` is forty lines: fetch on
   mount, refetch on key change, `reload()` after a write. There is one server
   and no cross-tab cache to invalidate.

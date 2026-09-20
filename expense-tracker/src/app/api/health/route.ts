@@ -1,24 +1,28 @@
 import { NextResponse } from 'next/server';
-import { one } from '@/server/db/client';
+import { getDb } from '@/server/db/mongo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Used by Render's health check and for debugging a fresh deploy. */
+/** Used by the host's health check and for debugging a fresh deploy. */
 export async function GET() {
   const checks = {
     app: true,
     database: false,
+    /** Transactions and the dedup guarantee both need a replica set. */
+    replica_set: false,
     auth_secret: Boolean(process.env.AUTH_SECRET),
   };
   try {
-    await one('SELECT 1 AS ok');
+    const info = await getDb().admin().command({ hello: 1 });
     checks.database = true;
+    checks.replica_set = Boolean(info.setName);
   } catch {
     checks.database = false;
   }
   const healthy = checks.app && checks.database && checks.auth_secret;
-  return NextResponse.json({ status: healthy ? 'ok' : 'degraded', checks }, {
-    status: healthy ? 200 : 503,
-  });
+  return NextResponse.json(
+    { status: healthy ? 'ok' : 'degraded', checks },
+    { status: healthy ? 200 : 503 },
+  );
 }

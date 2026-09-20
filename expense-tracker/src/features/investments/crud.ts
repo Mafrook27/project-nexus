@@ -2,7 +2,7 @@ import type { CrudConfig } from '@/server/crud';
 import { investmentSchema, investmentUpdateSchema } from './schema';
 
 export const investmentsCrud: CrudConfig = {
-  table: 'investments',
+  collection: 'investments',
   columns: [
     'name',
     'type',
@@ -20,12 +20,16 @@ export const investmentsCrud: CrudConfig = {
   ],
   createSchema: investmentSchema,
   updateSchema: investmentUpdateSchema,
-  listSql: (userId) => ({
-    text: `SELECT i.*, p.name AS person_name, p.color AS person_color
-           FROM investments i
-           LEFT JOIN people p ON p.id = i.person_id
-           WHERE i.user_id = $1
-           ORDER BY i.current_value DESC, i.name ASC`,
-    params: [userId],
-  }),
+  listPipeline: (userId) => [
+    { $match: { user_id: userId } },
+    { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+    {
+      $addFields: {
+        person_name: { $first: '$__p.name' },
+        person_color: { $first: '$__p.color' },
+      },
+    },
+    { $project: { __p: 0 } },
+    { $sort: { current_value: -1, name: 1 } },
+  ],
 };

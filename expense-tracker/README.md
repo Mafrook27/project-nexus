@@ -41,19 +41,23 @@ numbers.
 
 ## Quick start
 
-You need **Node 20+** and a **PostgreSQL 14+** database. A free Neon or Supabase
-database is plenty.
+You need **Node 20+** and a **MongoDB 6+** database. A free MongoDB Atlas M0
+cluster is plenty — it does not expire and needs no card.
 
 ```bash
 cd expense-tracker
 npm install
-npm run setup     # picks a database, generates the secret, creates the tables
+npm run setup     # picks a database, generates the secret, creates the indexes
 npm run dev       # http://localhost:3000
 ```
 
-`npm run setup` walks you through it: Neon, Supabase, a local Postgres or
-Docker. It tests the connection before writing anything and can load a year of
-demo data. Nothing to look up, no secret to generate by hand.
+`npm run setup` walks you through it: Atlas, a local `mongod`, or Docker. It
+tests the connection before writing anything and can load a year of demo data.
+Nothing to look up, no secret to generate by hand.
+
+Then `npm run db:check` proves the database really works — including that a
+duplicate bank reference is rejected, which is what stops the same SMS becoming
+two spends.
 
 If you seeded, sign in with `demo@paisa.app` / `demo1234`. Otherwise open
 `/register` and create your own account.
@@ -77,9 +81,10 @@ watch it land. Full guide: **[docs/TESTING.md](docs/TESTING.md)**.
 | `npm run build` / `npm run start` | Production build and serve |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm test` | Unit tests for the finance maths and the CSV parser |
-| `npm run setup` | First-run wizard: database, secret, tables, demo data |
-| `npm run db:migrate` | Apply `schema.sql` (safe to re-run) |
-| `npm run db:reset` | Drop every table, then re-apply |
+| `npm run setup` | First-run wizard: database, secret, indexes, demo data |
+| `npm run db:migrate` | Create every index (safe to re-run) |
+| `npm run db:check` | Prove the database works: indexes, uniqueness, money, `$lookup` |
+| `npm run db:reset` | Drop every collection, then rebuild the indexes |
 | `npm run db:seed` | Rebuild the demo account |
 | `npm run parse -- "<sms>"` | Check what a bank message parses to, no setup needed |
 
@@ -87,8 +92,9 @@ watch it land. Full guide: **[docs/TESTING.md](docs/TESTING.md)**.
 
 ## Deploying
 
-Short version: **Vercel for the app, Neon for the database.** Both have a free
-tier that comfortably fits one person's money.
+Short version: **Vercel for the app, MongoDB Atlas for the database.** Both
+have a free tier that comfortably fits one person's money — ten years of
+tracking is about 5 MB against Atlas's free 512 MB.
 
 A Render blueprint (`render.yaml`) and a `Dockerfile` are included if you would
 rather host it there. Full instructions, including the exact environment
@@ -142,13 +148,14 @@ src/
 │
 ├─ lib/                     money, dates, constants, fetch client, validation
 ├─ hooks/                   useResource, useAction
-└─ server/                  db client, schema.sql, migrate, seed, crud factory
+└─ server/                  mongo client, indexes, migrate, seed, crud factory
 ```
 
 **The rule to remember:** a file in `features/x/` may import from `lib/`,
 `components/` and `server/`, but two feature folders should not reach into each
 other's internals. Where they genuinely must (the dashboard needs the accounts
-balance SQL), they import that feature's `service.ts`, which is its public face.
+balance pipeline), they import that feature's `service.ts`, which is its public
+face.
 
 `docs/ARCHITECTURE.md` walks through the request lifecycle, why the CRUD factory
 exists, and how a new feature gets added in about fifteen minutes.

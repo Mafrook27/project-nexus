@@ -1,4 +1,4 @@
-import { one } from '@/server/db/client';
+import { newId, money, transactions, type TransactionDoc } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
 import { ok, readJson, route, searchParams } from '@/server/http';
 import { listTransactions } from '@/features/transactions/service';
@@ -15,30 +15,37 @@ export const GET = route(async (req: Request) => {
 export const POST = route(async (req: Request) => {
   const user = await requireUser();
   const d = transactionSchema.parse(await readJson(req));
-  const row = await one(
-    `INSERT INTO transactions
-       (user_id, type, bucket, need_level, amount, txn_date, transaction_at,
-        account_id, to_account_id, category_id, person_id, merchant, note)
-     VALUES ($1,$2,$3,$4,$5,$6,
-             -- A typed-in entry has a day but no clock. Midday keeps it inside
-             -- its own date and lets deduplication compare it like any other.
-             $6::date + time '12:00',
-             $7,$8,$9,$10,$11,$12)
-     RETURNING *`,
-    [
-      user.id,
-      d.type,
-      d.bucket,
-      d.need_level,
-      d.amount,
-      d.txn_date,
-      d.account_id ?? null,
-      d.to_account_id ?? null,
-      d.category_id ?? null,
-      d.person_id ?? null,
-      d.merchant ?? null,
-      d.note ?? null,
-    ],
-  );
-  return ok(row, 201);
+  const now = new Date();
+  const doc = {
+    _id: newId(),
+    user_id: user.id,
+    // zEnum builds the list from the shared constants at runtime, so zod
+    // widens these to string. The values themselves are already validated.
+    type: d.type as TransactionDoc['type'],
+    bucket: d.bucket as TransactionDoc['bucket'],
+    need_level: d.need_level as TransactionDoc['need_level'],
+    amount: money(d.amount),
+    txn_date: d.txn_date,
+    // A typed-in entry has a day but no clock. Midday keeps it inside its own
+    // date and lets deduplication compare it like any other.
+    transaction_at: new Date(`${d.txn_date}T12:00:00`),
+    account_id: d.account_id ?? null,
+    to_account_id: d.to_account_id ?? null,
+    category_id: d.category_id ?? null,
+    person_id: d.person_id ?? null,
+    merchant: d.merchant ?? null,
+    note: d.note ?? null,
+    reason: null,
+    source: 'manual' as const,
+    status: 'confirmed' as const,
+    payment_method: 'unknown',
+    bank: null,
+    account_last4: null,
+    raw_reference: null,
+    raw_message: null,
+    created_at: now,
+    updated_at: now,
+  };
+  await transactions().insertOne(doc);
+  return ok(doc, 201);
 });

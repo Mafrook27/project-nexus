@@ -1,7 +1,18 @@
 import 'server-only';
-import { transaction, type query as QueryFn } from '@/server/db/client';
+import type { ClientSession } from 'mongodb';
+import {
+  categories,
+  getClient,
+  merchantRules,
+  money,
+  newId,
+  transactions,
+  type TransactionDoc,
+} from '@/server/db/mongo';
+import { findAccountByLast4 } from '@/features/accounts/service';
+import { DEDUPE_WINDOW_SECONDS } from '@/lib/intelligence';
 import { parseBankMessage } from '../parsers';
-import { DUPLICATE_WINDOW_SQL, pickDuplicate } from './dedupe';
+import { pickDuplicate } from './dedupe';
 import { matchRule, statusFor, type MerchantRule } from './rules';
 import type { SyncEvent } from './schema';
 
@@ -11,18 +22,15 @@ export type SyncOutcome =
   | { status: 'skipped'; reason: string };
 
 /**
- * One detected payment, from arrival to a row (or a deliberate non-row).
+ * One detected payment, from arrival to a document (or a deliberate absence).
  *
  *   parse if needed -> reject non-transactions -> find a duplicate
  *   -> apply a learned rule -> insert
- *
- * Runs inside a transaction per batch so a duplicate check cannot race with
- * the insert that would have made it true.
  */
 export async function ingestEvent(
-  q: typeof QueryFn,
   userId: string,
   event: SyncEvent,
+  session?: ClientSession,
 ): Promise<SyncOutcome> {
   const resolved = resolve(event);
   if (!resolved) return { status: 'skipped', reason: 'Not a transaction message' };
@@ -33,107 +41,181 @@ export async function ingestEvent(
 
   // Layer 1: the bank's own reference. Exact, no judgement needed.
   if (reference) {
-    const [existing] = await q<{ id: string }>(
-      `SELECT id FROM transactions WHERE user_id = $1 AND raw_reference = $2`,
-      [userId, reference],
+    const existing = await transactions().findOne(
+      { user_id: userId, raw_reference: reference },
+      { session },
     );
-    if (existing) return { status: 'duplicate', id: existing.id };
+    if (existing) return { status: 'duplicate', id: existing._id };
   }
 
-  // Layer 2: the same payment seen through a different channel.
-  const candidates = await q<{ id: string; merchant: string | null; account_last4: string | null }>(
-    DUPLICATE_WINDOW_SQL,
-    [userId, amount, type, transactionAt.toISOString()],
-  );
+  // Layer 2: the same payment seen through a different channel. No shared
+  // reference, so this is a judgement: same amount and type, close in time, on
+  // an account and merchant that do not contradict.
+  const windowMs = DEDUPE_WINDOW_SECONDS * 1000;
+  const candidates = await transactions()
+    .find(
+      {
+        user_id: userId,
+        status: { $ne: 'ignored' },
+        amount: money(amount),
+        type,
+        transaction_at: {
+          $gte: new Date(transactionAt.getTime() - windowMs),
+          $lte: new Date(transactionAt.getTime() + windowMs),
+        },
+      },
+      { session, sort: { transaction_at: -1 }, limit: 20 },
+    )
+    .toArray();
+
   const duplicate = pickDuplicate(
     { amount, merchant, accountLast4, transactionAt },
-    candidates,
+    candidates.map((c) => ({
+      id: c._id,
+      merchant: c.merchant,
+      account_last4: c.account_last4,
+    })),
   );
   if (duplicate) {
     // The later message often carries detail the first one lacked.
-    await q(
-      `UPDATE transactions
-         SET merchant      = COALESCE(merchant, $2),
-             account_last4 = COALESCE(account_last4, $3),
-             raw_reference = COALESCE(raw_reference, $4),
-             updated_at    = now()
-       WHERE id = $1`,
-      [duplicate.id, merchant ?? null, accountLast4 ?? null, reference ?? null],
+    await transactions().updateOne(
+      { _id: duplicate.id },
+      [
+        {
+          $set: {
+            merchant: { $ifNull: ['$merchant', merchant ?? null] },
+            account_last4: { $ifNull: ['$account_last4', accountLast4 ?? null] },
+            raw_reference: { $ifNull: ['$raw_reference', reference ?? null] },
+            updated_at: new Date(),
+          },
+        },
+      ],
+      { session },
     );
     return { status: 'duplicate', id: duplicate.id };
   }
 
   // What have we already learned about this merchant?
-  const rules = await q<MerchantRule>(
-    `SELECT id, pattern, match_type, category_id, bucket, need_level, auto_confirm
-     FROM merchant_rules WHERE user_id = $1`,
-    [userId],
-  );
-  const rule = matchRule(merchant, rules);
+  const rules = (await merchantRules()
+    .find({ user_id: userId }, { session })
+    .toArray()) as unknown as MerchantRule[];
+  const rule = matchRule(merchant, rules.map(toRule));
   const status = statusFor(rule, confidence);
 
-  // Fall back to the category's own defaults for anything the rule leaves out.
   const category = rule?.category_id
-    ? (
-        await q<{ bucket: string; default_need_level: string }>(
-          `SELECT bucket, default_need_level FROM categories WHERE id = $1 AND user_id = $2`,
-          [rule.category_id, userId],
-        )
-      )[0]
-    : undefined;
+    ? await categories().findOne({ _id: rule.category_id, user_id: userId }, { session })
+    : null;
 
-  const accountId = accountLast4 ? await findAccount(q, userId, accountLast4) : null;
+  const accountId = accountLast4 ? await findAccountByLast4(userId, accountLast4) : null;
+  const now = new Date();
+  const id = newId();
 
-  const [row] = await q<{ id: string }>(
-    `INSERT INTO transactions
-       (user_id, account_id, category_id, type, bucket, need_level, amount,
-        txn_date, transaction_at, merchant, note, source, status, payment_method,
-        bank, account_last4, raw_reference, raw_message)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8::timestamptz::date,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-     RETURNING id`,
-    [
-      userId,
-      accountId,
-      rule?.category_id ?? null,
-      type,
-      rule?.bucket ?? category?.bucket ?? 'personal',
-      rule?.need_level ?? category?.default_need_level ?? 'need',
-      amount,
-      transactionAt.toISOString(),
-      merchant ?? null,
-      event.description ?? null,
-      event.source,
-      status,
-      resolved.paymentMethod,
-      resolved.bank ?? null,
-      accountLast4 ?? null,
-      reference ?? null,
-      event.message ?? null,
-    ],
-  );
+  const doc: TransactionDoc = {
+    _id: id,
+    user_id: userId,
+    account_id: accountId,
+    to_account_id: null,
+    category_id: rule?.category_id ?? null,
+    person_id: null,
+    type,
+    bucket: (rule?.bucket ?? category?.bucket ?? 'personal') as TransactionDoc['bucket'],
+    need_level: (rule?.need_level ??
+      category?.default_need_level ??
+      'need') as TransactionDoc['need_level'],
+    amount: money(amount),
+    txn_date: transactionAt.toISOString().slice(0, 10),
+    transaction_at: transactionAt,
+    merchant: merchant ?? null,
+    note: event.description ?? null,
+    reason: null,
+    source: event.source,
+    status,
+    payment_method: resolved.paymentMethod,
+    bank: resolved.bank ?? null,
+    account_last4: accountLast4 ?? null,
+    raw_reference: reference ?? null,
+    raw_message: event.message ?? null,
+    created_at: now,
+    updated_at: now,
+  };
 
-  if (rule) {
-    await q(`UPDATE merchant_rules SET hits = hits + 1, last_used_at = now() WHERE id = $1`, [
-      rule.id,
-    ]);
+  try {
+    await transactions().insertOne(doc, { session });
+  } catch (err) {
+    // The unique index on (user_id, raw_reference) is the real guarantee: it
+    // holds even when two copies of the same SMS arrive together, which no
+    // amount of read-then-write application code can promise.
+    if ((err as { code?: number }).code === 11000 && reference) {
+      const existing = await transactions().findOne(
+        { user_id: userId, raw_reference: reference },
+        { session },
+      );
+      if (existing) return { status: 'duplicate', id: existing._id };
+    }
+    throw err;
   }
 
-  return { status: 'created', id: row.id, needsReview: status === 'detected' };
+  if (rule) {
+    await merchantRules().updateOne(
+      { _id: rule.id },
+      { $inc: { hits: 1 }, $set: { last_used_at: now } },
+      { session },
+    );
+  }
+
+  return { status: 'created', id, needsReview: status === 'detected' };
 }
 
-/** Runs a whole batch in one database transaction. */
+const toRule = (doc: MerchantRule & { _id?: string }): MerchantRule => ({
+  ...doc,
+  id: doc.id ?? (doc._id as string),
+});
+
+/**
+ * Runs a whole batch inside one database transaction, so a phone flushing an
+ * offline queue either lands entirely or not at all.
+ */
 export async function ingestBatch(userId: string, events: SyncEvent[]) {
-  return transaction(async (q) => {
-    const results: SyncOutcome[] = [];
-    for (const event of events) results.push(await ingestEvent(q, userId, event));
-    return {
-      results,
-      created: results.filter((r) => r.status === 'created').length,
-      duplicates: results.filter((r) => r.status === 'duplicate').length,
-      skipped: results.filter((r) => r.status === 'skipped').length,
-      needsReview: results.filter((r) => r.status === 'created' && r.needsReview).length,
-    };
-  });
+  const session = getClient().startSession();
+  try {
+    let results: SyncOutcome[] = [];
+    await session.withTransaction(async () => {
+      // Reset on retry: withTransaction may run the body more than once.
+      results = [];
+      for (const event of events) results.push(await ingestEvent(userId, event, session));
+    });
+    return summarise(results);
+  } catch (err) {
+    // A single-node deployment cannot do transactions. Rather than fail, fall
+    // back to sequential writes: the unique index still prevents duplicates.
+    if (isTransactionUnsupported(err)) {
+      const results: SyncOutcome[] = [];
+      for (const event of events) results.push(await ingestEvent(userId, event));
+      return summarise(results);
+    }
+    throw err;
+  } finally {
+    await session.endSession();
+  }
+}
+
+function summarise(results: SyncOutcome[]) {
+  return {
+    results,
+    created: results.filter((r) => r.status === 'created').length,
+    duplicates: results.filter((r) => r.status === 'duplicate').length,
+    skipped: results.filter((r) => r.status === 'skipped').length,
+    needsReview: results.filter((r) => r.status === 'created' && r.needsReview).length,
+  };
+}
+
+export function isTransactionUnsupported(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes('Transaction numbers are only allowed') ||
+    message.includes('requires a replica set') ||
+    message.includes('not supported')
+  );
 }
 
 /** Structured fields win; the raw message fills whatever they leave out. */
@@ -152,19 +234,8 @@ function resolve(event: SyncEvent) {
     reference: event.reference ?? parsed?.reference ?? null,
     bank: event.bank ?? parsed?.bank,
     paymentMethod: event.paymentMethod ?? parsed?.paymentMethod ?? 'unknown',
-    // A phone's clock beats no clock; a bank's own stamp beats both.
     transactionAt: at ? new Date(at) : new Date(),
     // Fields the phone sent are facts, not guesses.
     confidence: event.amount !== undefined ? 0.9 : (parsed?.confidence ?? 0.4),
   };
-}
-
-async function findAccount(q: typeof QueryFn, userId: string, last4: string) {
-  const [account] = await q<{ id: string }>(
-    `SELECT id FROM accounts
-     WHERE user_id = $1 AND archived = false AND (last4 = $2 OR name ILIKE '%' || $2)
-     ORDER BY (last4 = $2) DESC LIMIT 1`,
-    [userId, last4],
-  );
-  return account?.id ?? null;
 }

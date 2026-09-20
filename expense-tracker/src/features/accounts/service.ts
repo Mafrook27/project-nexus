@@ -1,52 +1,39 @@
 import 'server-only';
-import { query } from '@/server/db/client';
+import { accounts } from '@/server/db/mongo';
+import { accountsPipeline, cashTotalsPipeline } from './pipelines';
 import type { Account } from './schema';
 
-/**
- * A balance is never stored - it is always opening_balance plus everything that
- * has moved through the account, so edits to old transactions stay correct.
- */
-export const ACCOUNT_BALANCE_SQL = `
-  a.opening_balance
-  + COALESCE((
-      SELECT SUM(CASE t.type WHEN 'income' THEN t.amount ELSE -t.amount END)
-      FROM transactions t WHERE t.account_id = a.id AND t.status <> 'ignored'
-    ), 0)
-  + COALESCE((
-      SELECT SUM(t.amount) FROM transactions t
-      WHERE t.to_account_id = a.id AND t.type = 'transfer' AND t.status <> 'ignored'
-    ), 0)
-`;
+export { accountMovementLookup, accountsPipeline, cashTotalsPipeline } from './pipelines';
 
 export async function listAccounts(userId: string): Promise<Account[]> {
-  return query<Account>(
-    `SELECT a.*, p.name AS person_name, ${ACCOUNT_BALANCE_SQL} AS balance
-     FROM accounts a
-     LEFT JOIN people p ON p.id = a.person_id
-     WHERE a.user_id = $1
-     ORDER BY a.archived ASC, a.is_emergency DESC, a.name ASC`,
-    [userId],
-  );
+  return accounts().aggregate<Account>(accountsPipeline(userId)).toArray();
 }
 
-export async function cashTotals(userId: string) {
-  const rows = await query<{ total: number; emergency: number }>(
-    `SELECT
-       COALESCE(SUM(${ACCOUNT_BALANCE_SQL}), 0) AS total,
-       COALESCE(SUM(CASE WHEN a.is_emergency THEN ${ACCOUNT_BALANCE_SQL} ELSE 0 END), 0) AS emergency
-     FROM accounts a
-     WHERE a.user_id = $1 AND a.archived = false AND a.type <> 'credit_card'`,
-    [userId],
-  );
-  const cards = await query<{ dues: number }>(
-    `SELECT COALESCE(SUM(-1 * (${ACCOUNT_BALANCE_SQL})), 0) AS dues
-     FROM accounts a
-     WHERE a.user_id = $1 AND a.archived = false AND a.type = 'credit_card'`,
-    [userId],
-  );
+export type CashTotals = { cash: number; emergency: number; cardDues: number };
+
+export async function cashTotals(userId: string): Promise<CashTotals> {
+  const [row] = await accounts()
+    .aggregate<CashTotals>(cashTotalsPipeline(userId))
+    .toArray();
   return {
-    cash: rows[0]?.total ?? 0,
-    emergency: rows[0]?.emergency ?? 0,
-    cardDues: Math.max(0, cards[0]?.dues ?? 0),
+    cash: row?.cash ?? 0,
+    emergency: row?.emergency ?? 0,
+    cardDues: Math.max(0, row?.cardDues ?? 0),
   };
+}
+
+/** Finds the account a bank message belongs to, by its masked digits. */
+export async function findAccountByLast4(
+  userId: string,
+  last4: string,
+): Promise<string | null> {
+  const match = await accounts().findOne(
+    {
+      user_id: userId,
+      archived: false,
+      $or: [{ last4 }, { name: { $regex: `${last4}$` } }],
+    },
+    { sort: { last4: -1 } },
+  );
+  return match?._id ?? null;
 }

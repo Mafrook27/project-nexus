@@ -1,34 +1,34 @@
 /**
- * Applies schema.sql. Safe to run repeatedly - every statement is IF NOT EXISTS.
+ * MongoDB creates collections on first write, so there is no schema to apply.
+ * What does need creating is the indexes - including the two UNIQUE ones the
+ * app relies on for correctness, not just for speed.
+ *
  *   npm run db:migrate
- *   npm run db:reset    (drops every table first)
+ *   npm run db:reset    (drops every collection first)
  */
 import './env';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { closePool, getPool } from './client';
-
-const here = dirname(fileURLToPath(import.meta.url));
-
-const DROP = `
-DROP TABLE IF EXISTS net_worth_snapshots, goals, recurring, liabilities, sips,
-  investments, budgets, transactions, categories, accounts, people, users CASCADE;
-`;
+import { COLLECTIONS, closeClient, col, getDb, type AnyDoc } from './mongo';
+import { ensureIndexes } from './indexes';
 
 async function main() {
-  const reset = process.argv.includes('--reset');
-  const sql = await readFile(join(here, 'schema.sql'), 'utf8');
-  if (reset) {
-    console.log('· dropping existing tables');
-    await getPool().query(DROP);
+  if (process.argv.includes('--reset')) {
+    console.log('· dropping every collection');
+    for (const name of Object.values(COLLECTIONS)) {
+      await col<AnyDoc>(name).drop().catch(() => {});
+    }
   }
-  await getPool().query(sql);
-  console.log('✓ schema applied');
-  await closePool();
+
+  const report = await ensureIndexes();
+  const created = report.reduce((sum, r) => sum + r.created, 0);
+  console.log(`✓ indexes ready on ${getDb().databaseName} (${created} created)`);
+  for (const row of report.filter((r) => r.created > 0)) {
+    console.log(`  ${row.collection}: +${row.created}`);
+  }
+  await closeClient();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error('✗ migration failed:', err.message);
+  await closeClient().catch(() => {});
   process.exit(1);
 });

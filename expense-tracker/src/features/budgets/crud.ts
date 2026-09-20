@@ -2,14 +2,21 @@ import type { CrudConfig } from '@/server/crud';
 import { budgetSchema, budgetUpdateSchema } from './schema';
 
 export const budgetsCrud: CrudConfig = {
-  table: 'budgets',
+  collection: 'budgets',
   columns: ['category_id', 'month', 'amount'],
   createSchema: budgetSchema,
   updateSchema: budgetUpdateSchema,
-  listSql: (userId) => ({
-    text: `SELECT b.*, c.name AS category_name, c.color AS category_color, c.bucket
-           FROM budgets b JOIN categories c ON c.id = b.category_id
-           WHERE b.user_id = $1 ORDER BY c.bucket, c.name`,
-    params: [userId],
-  }),
+  listPipeline: (userId) => [
+    { $match: { user_id: userId } },
+    { $lookup: { from: 'categories', localField: 'category_id', foreignField: '_id', as: '__c' } },
+    {
+      $addFields: {
+        category_name: { $first: '$__c.name' },
+        category_color: { $first: '$__c.color' },
+        bucket: { $first: '$__c.bucket' },
+      },
+    },
+    { $project: { __c: 0 } },
+    { $sort: { bucket: 1, category_name: 1 } },
+  ],
 };

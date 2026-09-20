@@ -1,16 +1,23 @@
 import 'server-only';
-import { query } from '@/server/db/client';
+import { investments } from '@/server/db/mongo';
+import { portfolioPipeline } from './pipelines';
 import type { Investment } from './schema';
 
 export async function listInvestments(userId: string): Promise<Investment[]> {
-  return query<Investment>(
-    `SELECT i.*, p.name AS person_name, p.color AS person_color
-     FROM investments i
-     LEFT JOIN people p ON p.id = i.person_id
-     WHERE i.user_id = $1
-     ORDER BY i.current_value DESC, i.name ASC`,
-    [userId],
-  );
+  return investments()
+    .aggregate<Investment>([
+      { $match: { user_id: userId } },
+      { $lookup: { from: 'people', localField: 'person_id', foreignField: '_id', as: '__p' } },
+      {
+        $addFields: {
+          person_name: { $first: '$__p.name' },
+          person_color: { $first: '$__p.color' },
+        },
+      },
+      { $project: { __p: 0 } },
+      { $sort: { current_value: -1, name: 1 } },
+    ])
+    .toArray();
 }
 
 export type PortfolioSummary = {
@@ -20,53 +27,45 @@ export type PortfolioSummary = {
   gainPct: number;
   liquidCorpus: number;
   byType: { type: string; invested: number; current: number }[];
-  byPerson: { person_id: string | null; name: string; color: string; invested: number; current: number }[];
-};
-
-export async function portfolioSummary(userId: string): Promise<PortfolioSummary> {
-  const [totals] = await query<{ invested: number; current: number; liquid: number }>(
-    `SELECT COALESCE(SUM(invested), 0)      AS invested,
-            COALESCE(SUM(current_value), 0) AS current,
-            COALESCE(SUM(CASE WHEN liquid THEN current_value ELSE 0 END), 0) AS liquid
-     FROM investments WHERE user_id = $1`,
-    [userId],
-  );
-  const byType = await query<{ type: string; invested: number; current: number }>(
-    `SELECT type,
-            COALESCE(SUM(invested), 0) AS invested,
-            COALESCE(SUM(current_value), 0) AS current
-     FROM investments WHERE user_id = $1
-     GROUP BY type ORDER BY current DESC`,
-    [userId],
-  );
-  const byPerson = await query<{
+  byPerson: {
     person_id: string | null;
     name: string;
     color: string;
     invested: number;
     current: number;
-  }>(
-    `SELECT i.person_id,
-            COALESCE(p.name, 'Unassigned')  AS name,
-            COALESCE(p.color, '#94A3B8')    AS color,
-            COALESCE(SUM(i.invested), 0)      AS invested,
-            COALESCE(SUM(i.current_value), 0) AS current
-     FROM investments i
-     LEFT JOIN people p ON p.id = i.person_id
-     WHERE i.user_id = $1
-     GROUP BY i.person_id, p.name, p.color
-     ORDER BY current DESC`,
-    [userId],
-  );
+  }[];
+};
+
+/**
+ * Totals, split by asset type and by whose money it is. One pass over the
+ * collection with `$facet`, rather than the three separate SQL queries.
+ */
+export async function portfolioSummary(userId: string): Promise<PortfolioSummary> {
+  const [result] = await investments()
+    .aggregate<{
+      totals: { invested: number; current: number; liquid: number }[];
+      byType: { type: string; invested: number; current: number }[];
+      byPerson: {
+        person_id: string | null;
+        name: string;
+        color: string;
+        invested: number;
+        current: number;
+      }[];
+    }>(portfolioPipeline(userId))
+    .toArray();
+
+  const totals = result?.totals?.[0];
   const invested = totals?.invested ?? 0;
   const current = totals?.current ?? 0;
+
   return {
     invested,
     current,
     gain: current - invested,
     gainPct: invested > 0 ? ((current - invested) / invested) * 100 : 0,
     liquidCorpus: totals?.liquid ?? 0,
-    byType,
-    byPerson,
+    byType: result?.byType ?? [],
+    byPerson: result?.byPerson ?? [],
   };
 }

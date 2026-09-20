@@ -1,12 +1,12 @@
 import 'server-only';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { one, query } from '@/server/db/client';
+import { devices, newId } from '@/server/db/mongo';
 import { HttpError } from '@/server/http';
 
 /**
  * A phone gets its own credential, never your password. The token is shown
  * once at pairing and only its hash is stored, so a database dump cannot be
- * replayed against the sync endpoint. Revoking a device is one UPDATE.
+ * replayed against the sync endpoint.
  */
 
 const PREFIX = 'paisa_dev';
@@ -20,22 +20,24 @@ export async function pairDevice(
   input: { name: string; platform: string },
 ): Promise<PairedDevice> {
   const secret = randomBytes(32).toString('base64url');
-  const device = await one<{ id: string; name: string }>(
-    `INSERT INTO devices (user_id, name, platform, token_hash)
-     VALUES ($1, $2, $3, $4) RETURNING id, name`,
-    [userId, input.name, input.platform, hash(secret)],
-  );
-  if (!device) throw new HttpError(500, 'Could not pair that device');
+  const id = newId();
+  await devices().insertOne({
+    _id: id,
+    user_id: userId,
+    name: input.name,
+    platform: input.platform,
+    token_hash: hash(secret),
+    last_seen_at: null,
+    synced_count: 0,
+    revoked_at: null,
+    created_at: new Date(),
+  });
   // The id travels with the token so verification is a single indexed lookup.
-  return { id: device.id, name: device.name, token: `${PREFIX}_${device.id}.${secret}` };
+  return { id, name: input.name, token: `${PREFIX}_${id}.${secret}` };
 }
 
 export type DeviceIdentity = { deviceId: string; userId: string; deviceName: string };
 
-/**
- * Verifies an `Authorization: Bearer <token>` header from the companion app.
- * Returns null rather than throwing so the caller decides the status code.
- */
 export async function verifyDeviceToken(header: string | null): Promise<DeviceIdentity | null> {
   const raw = header?.startsWith('Bearer ') ? header.slice(7).trim() : null;
   if (!raw || !raw.startsWith(`${PREFIX}_`)) return null;
@@ -44,40 +46,41 @@ export async function verifyDeviceToken(header: string | null): Promise<DeviceId
   if (!idPart || !secret) return null;
   if (!/^[0-9a-f-]{36}$/i.test(idPart)) return null;
 
-  const device = await one<{ id: string; user_id: string; name: string; token_hash: string }>(
-    `SELECT id, user_id, name, token_hash FROM devices
-     WHERE id = $1 AND revoked_at IS NULL`,
-    [idPart],
-  );
+  const device = await devices().findOne({ _id: idPart, revoked_at: null });
   if (!device) return null;
 
   const expected = Buffer.from(device.token_hash, 'hex');
   const actual = Buffer.from(hash(secret), 'hex');
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
 
-  return { deviceId: device.id, userId: device.user_id, deviceName: device.name };
+  return { deviceId: device._id, userId: device.user_id, deviceName: device.name };
 }
 
 export async function recordDeviceSync(deviceId: string, created: number): Promise<void> {
-  await query(
-    `UPDATE devices SET last_seen_at = now(), synced_count = synced_count + $2 WHERE id = $1`,
-    [deviceId, created],
+  await devices().updateOne(
+    { _id: deviceId },
+    { $set: { last_seen_at: new Date() }, $inc: { synced_count: created } },
   );
 }
 
 export async function listDevices(userId: string) {
-  return query(
-    `SELECT id, name, platform, last_seen_at, synced_count, revoked_at, created_at
-     FROM devices WHERE user_id = $1 ORDER BY revoked_at NULLS FIRST, created_at DESC`,
-    [userId],
-  );
+  return devices()
+    .aggregate([
+      { $match: { user_id: userId } },
+      { $addFields: { __active: { $cond: [{ $eq: ['$revoked_at', null] }, 0, 1] } } },
+      { $sort: { __active: 1, created_at: -1 } },
+      { $project: { token_hash: 0, __active: 0 } },
+    ])
+    .toArray();
 }
 
 export async function revokeDevice(userId: string, deviceId: string): Promise<boolean> {
-  const row = await one(
-    `UPDATE devices SET revoked_at = now()
-     WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL RETURNING id`,
-    [deviceId, userId],
+  const result = await devices().updateOne(
+    { _id: deviceId, user_id: userId, revoked_at: null },
+    { $set: { revoked_at: new Date() } },
   );
-  return Boolean(row);
+  return result.modifiedCount > 0;
 }
+
+/** Only used so the pairing route can report a clear failure. */
+export const pairingFailure = () => new HttpError(500, 'Could not pair that device');

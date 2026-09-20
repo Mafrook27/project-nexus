@@ -1,4 +1,4 @@
-import { one } from '@/server/db/client';
+import { transactions } from '@/server/db/mongo';
 import { requireUser } from '@/features/auth/session';
 import { reasonSchema } from '@/features/transactions/intelligence/schema';
 import { notFound, ok, readJson, route } from '@/server/http';
@@ -11,10 +11,10 @@ export const POST = route(async (req: Request, ctx: { params: Promise<{ id: stri
   const { id } = await ctx.params;
   const { reason } = reasonSchema.parse(await readJson(req));
 
-  const row = await one(
-    `UPDATE transactions SET reason = $3, updated_at = now()
-     WHERE id = $1 AND user_id = $2 RETURNING *`,
-    [id, user.id, reason ?? null],
+  const row = await transactions().findOneAndUpdate(
+    { _id: id, user_id: user.id },
+    { $set: { reason: reason ?? null, updated_at: new Date() } },
+    { returnDocument: 'after' },
   );
   if (!row) throw notFound('Transaction not found');
   return ok(row);

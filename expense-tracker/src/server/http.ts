@@ -43,7 +43,7 @@ export function route<A extends unknown[]>(
       }
       const message = err instanceof Error ? err.message : 'Unexpected error';
       console.error('[api]', message, err);
-      const missingDb = message.includes('DATABASE_URL') || message.includes('AUTH_SECRET');
+      const missingDb = message.includes('MONGODB_URI') || message.includes('AUTH_SECRET');
       return NextResponse.json(
         { error: missingDb ? message : 'Something went wrong on the server' },
         { status: missingDb ? 503 : 500 },
