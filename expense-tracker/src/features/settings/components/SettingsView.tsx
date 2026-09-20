@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Field, Input, Select } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
 import { EmptyState } from '@/components/ui/States';
+import { SettingsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useAction, useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
@@ -20,8 +21,10 @@ import type { Person } from '@/features/people/schema';
 import type { Category } from '@/features/categories/schema';
 
 export function SettingsView() {
-  const { me, refresh } = useReference();
+  const { me, loading } = useReference();
   const router = useRouter();
+
+  if (loading && !me) return <SettingsSkeleton />;
 
   async function signOut() {
     await api.post('/api/auth/logout');

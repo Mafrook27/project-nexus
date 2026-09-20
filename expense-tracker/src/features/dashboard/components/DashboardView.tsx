@@ -7,7 +7,8 @@ import { Card } from '@/components/ui/Card';
 import { StatTile } from '@/components/ui/StatTile';
 import { Meter } from '@/components/ui/Meter';
 import { Badge, Dot } from '@/components/ui/Badge';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { DashboardSkeleton } from '@/components/skeletons/PageSkeletons';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { Button } from '@/components/ui/Button';
 import { ChartFrame } from '@/components/charts/ChartFrame';
@@ -33,17 +34,7 @@ export function DashboardView() {
   );
 
   if (error) return <ErrorNote message={error} onRetry={reload} />;
-  if (loading && !data) {
-    return (
-      <div className="space-y-4">
-        <LoadingCard height="h-56" />
-        <div className="grid gap-4 lg:grid-cols-2">
-          <LoadingCard height="h-72" />
-          <LoadingCard height="h-72" />
-        </div>
-      </div>
-    );
-  }
+  if (loading && !data) return <DashboardSkeleton />;
   if (!data) return null;
 
   const { currency, totals, netWorth, fire, emergency, portfolio, spendQuality } = data;

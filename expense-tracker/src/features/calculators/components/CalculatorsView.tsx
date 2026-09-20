@@ -12,6 +12,7 @@ import { ShareBar } from '@/components/charts/ShareBar';
 import { formatMoney } from '@/lib/money';
 import { SERIES } from '@/lib/viz';
 import { useReference } from '@/features/settings/ReferenceData';
+import { CalculatorsSkeleton } from '@/components/skeletons/PageSkeletons';
 import {
   emiSchedule,
   lumpsumFutureValue,
@@ -22,8 +23,10 @@ import {
 type Tab = 'sip' | 'lumpsum' | 'emi' | 'goal';
 
 export function CalculatorsView() {
-  const { currency } = useReference();
+  const { currency, loading, me } = useReference();
   const [tab, setTab] = useState<Tab>('sip');
+
+  if (loading && !me) return <CalculatorsSkeleton />;
 
   return (
     <div className="space-y-5">

@@ -9,7 +9,8 @@ import { Meter } from '@/components/ui/Meter';
 import { StatTile } from '@/components/ui/StatTile';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, MoneyInput, Select } from '@/components/ui/Field';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { GoalsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useAction, useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
@@ -42,6 +43,8 @@ export function GoalsView() {
     }
   }
 
+  if (loading && !data) return <GoalsSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -65,7 +68,6 @@ export function GoalsView() {
       </div>
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-      {loading && !data ? <LoadingCard height="h-64" /> : null}
 
       {goals.length ? (
         <div className="grid gap-4 sm:grid-cols-2">

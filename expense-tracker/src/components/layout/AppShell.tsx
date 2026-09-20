@@ -8,12 +8,13 @@ import { cn } from '@/lib/cn';
 import { api } from '@/lib/api';
 import { ALL_NAV, MOBILE_NAV, NAV_GROUPS, SETTINGS_ITEM } from './nav';
 import { useReference } from '@/features/settings/ReferenceData';
+import { Skeleton } from '@/components/ui/Skeleton';
 import { QuickAdd } from '@/features/transactions/components/QuickAdd';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { me } = useReference();
+  const { me, loading: loadingMe } = useReference();
   const [drawer, setDrawer] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
 
@@ -39,7 +40,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
         <NavList pathname={pathname} />
-        <Footer me={me} onSignOut={signOut} />
+        <Footer me={me} loading={loadingMe} onSignOut={signOut} />
       </aside>
 
       {/* Mobile drawer */}
@@ -62,7 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </button>
             </div>
             <NavList pathname={pathname} onNavigate={() => setDrawer(false)} />
-            <Footer me={me} onSignOut={signOut} />
+            <Footer me={me} loading={loadingMe} onSignOut={signOut} />
           </div>
         </div>
       ) : null}
@@ -167,9 +168,11 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
 
 function Footer({
   me,
+  loading,
   onSignOut,
 }: {
   me: { name: string; email: string } | null;
+  loading?: boolean;
   onSignOut: () => void;
 }) {
   const SettingsIcon = SETTINGS_ITEM.icon;
@@ -183,13 +186,25 @@ function Footer({
         Settings
       </Link>
       <div className="mt-2 flex items-center gap-2.5 rounded-xl px-2.5 py-2">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-sunken text-[13px] font-semibold text-ink-soft">
-          {(me?.name ?? 'U').slice(0, 1).toUpperCase()}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium text-ink">{me?.name ?? '—'}</p>
-          <p className="truncate text-[11.5px] text-ink-muted">{me?.email ?? ''}</p>
-        </div>
+        {loading && !me ? (
+          <>
+            <Skeleton className="size-8 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className="h-3 w-20 rounded" />
+              <Skeleton className="h-2.5 w-28 rounded" />
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-sunken text-[13px] font-semibold text-ink-soft">
+              {(me?.name ?? 'U').slice(0, 1).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-medium text-ink">{me?.name ?? '—'}</p>
+              <p className="truncate text-[11.5px] text-ink-muted">{me?.email ?? ''}</p>
+            </div>
+          </>
+        )}
         <button
           onClick={onSignOut}
           aria-label="Sign out"

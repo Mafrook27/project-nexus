@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { StatTile } from '@/components/ui/StatTile';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { TableWrap, Td, Th } from '@/components/ui/Table';
-import { ErrorNote, LoadingCard, EmptyState } from '@/components/ui/States';
+import { ErrorNote,  EmptyState } from '@/components/ui/States';
+import { ReportsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { ChartFrame } from '@/components/charts/ChartFrame';
 import { TrendChart, TREND_LEGEND } from '@/components/charts/TrendChart';
 import { AreaTrend } from '@/components/charts/AreaTrend';
@@ -49,7 +50,7 @@ export function ReportsView() {
   }, [data]);
 
   if (error) return <ErrorNote message={error} onRetry={reload} />;
-  if (loading && !data) return <LoadingCard height="h-96" />;
+  if (loading && !data) return <ReportsSkeleton />;
   if (!data || !yearly) return null;
 
   const { currency } = data;

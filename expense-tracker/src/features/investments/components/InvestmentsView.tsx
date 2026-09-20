@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile } from '@/components/ui/StatTile';
 import { Segmented } from '@/components/ui/Segmented';
 import { TableWrap, Td, Th } from '@/components/ui/Table';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { InvestmentsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { ChartFrame } from '@/components/charts/ChartFrame';
 import { RankedBars } from '@/components/charts/RankedBars';
@@ -89,6 +90,8 @@ export function InvestmentsView() {
     }
   }
 
+  if (loading && !data) return <InvestmentsSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -155,7 +158,6 @@ export function InvestmentsView() {
       ) : (
         <>
           {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-          {loading && !data ? <LoadingCard height="h-72" /> : null}
 
           {data && rows.length ? (
             <>

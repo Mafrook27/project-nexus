@@ -9,7 +9,8 @@ import { Badge, Dot } from '@/components/ui/Badge';
 import { Field, Input, Select } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { MonthPicker } from '@/components/ui/MonthPicker';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { TransactionsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useResource, useAction } from '@/hooks/useResource';
 import { api, withQuery } from '@/lib/api';
@@ -75,6 +76,8 @@ export function TransactionsView() {
     void reload();
     void refresh();
   }
+
+  if (loading && !data) return <TransactionsSkeleton />;
 
   return (
     <div className="space-y-4">
@@ -220,7 +223,6 @@ export function TransactionsView() {
       ) : null}
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-      {loading && !data ? <LoadingCard height="h-96" /> : null}
 
       {data ? (
         data.rows.length ? (

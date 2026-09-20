@@ -184,6 +184,25 @@ view. No chart in this app encodes anything by colour alone.
 
 ---
 
+## Loading states
+
+`components/ui/Skeleton.tsx` holds the blocks (a stat, a chart, a row, a meter,
+a table) and `components/skeletons/PageSkeletons.tsx` composes one per screen,
+laid out like the screen it replaces.
+
+Each is used in two places:
+
+1. `src/app/(app)/<route>/loading.tsx` - Next.js renders it the moment you
+   navigate, before the page component exists.
+2. The view itself, as an **early return** while its first fetch is in flight.
+
+The early return matters. Returning a partial skeleton below a header that has
+already rendered means the tiles above it show `₹0` for a second, which is worse
+than showing nothing - a wrong number reads as real. So the whole view waits.
+
+The shimmer is one CSS sweep (`.skeleton` in `globals.css`) and it stops
+entirely under `prefers-reduced-motion`.
+
 ## Adding a feature
 
 Say you want to track insurance policies.
@@ -196,6 +215,7 @@ Say you want to track insurance policies.
 5. `src/features/insurance/components/InsuranceView.tsx` — the screen.
 6. `src/app/(app)/insurance/page.tsx` — export the view.
 7. Add it to `src/components/layout/nav.ts`.
+8. Add a skeleton to `PageSkeletons.tsx` and a `loading.tsx` for the route.
 
 If it needs a derived number on the dashboard, add a query to
 `features/dashboard/service.ts` and a tile to `DashboardView`.

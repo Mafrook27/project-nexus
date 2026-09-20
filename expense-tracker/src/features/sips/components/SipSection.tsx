@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { StatTile } from '@/components/ui/StatTile';
 import { Modal } from '@/components/ui/Modal';
 import { Field, Input, MoneyInput, Select } from '@/components/ui/Field';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { SipSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { ChartFrame } from '@/components/charts/ChartFrame';
 import { GrowthChart, GROWTH_LEGEND } from '@/components/charts/GrowthChart';
@@ -65,6 +66,8 @@ export function SipSection({ currency }: { currency: string }) {
     }
   }
 
+  if (loading && !data) return <SipSkeleton />;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -87,7 +90,6 @@ export function SipSection({ currency }: { currency: string }) {
       </div>
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-      {loading && !data ? <LoadingCard height="h-64" /> : null}
 
       {monthly > 0 ? (
         <ChartFrame

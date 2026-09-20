@@ -165,6 +165,13 @@ adjacent series stay distinguishable. Three of them sit below the 3:1 contrast
 line on white, which is why every chart also ships a legend, direct labels and
 a table view. Nothing is ever encoded by colour alone.
 
+**Loading looks like the page, not like a spinner.** Every screen has a
+skeleton that traces its real layout - a stat tile skeleton is tile-sized, a
+chart skeleton has an axis and gridlines. They run twice: Next.js shows one the
+instant you tap a nav item, and the view shows the same one while its data
+loads. Nothing shifts when the numbers arrive, and no screen ever flashes a
+₹0 it is about to replace.
+
 **Money is validated, not trusted.** The API accepts `1,250`, `₹1,20,000` and
 `12k` because that is how people type, and it converts them server-side rather
 than rejecting the form.

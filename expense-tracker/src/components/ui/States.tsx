@@ -30,21 +30,6 @@ export function EmptyState({
   );
 }
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-lg bg-surface-sunken', className)} />;
-}
-
-export function LoadingCard({ height = 'h-64' }: { height?: string }) {
-  return (
-    <div
-      className={cn(
-        'animate-pulse rounded-2xl border border-line bg-surface shadow-[var(--shadow-card)]',
-        height,
-      )}
-    />
-  );
-}
-
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="rounded-xl border border-bad/25 bg-bad-soft px-4 py-3 text-[13px] text-bad">

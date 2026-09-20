@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Field, Input, MoneyInput, Select } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { StatTile } from '@/components/ui/StatTile';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { AccountsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useAction, useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
@@ -52,6 +53,8 @@ export function AccountsView() {
     }
   }
 
+  if (loading && !data) return <AccountsSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -80,7 +83,6 @@ export function AccountsView() {
       </div>
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-      {loading && !data ? <LoadingCard height="h-60" /> : null}
 
       {data ? (
         accounts.length ? (

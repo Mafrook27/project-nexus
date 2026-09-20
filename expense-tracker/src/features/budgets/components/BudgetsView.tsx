@@ -9,7 +9,8 @@ import { StatTile } from '@/components/ui/StatTile';
 import { MoneyInput } from '@/components/ui/Field';
 import { MonthPicker } from '@/components/ui/MonthPicker';
 import { Segmented } from '@/components/ui/Segmented';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { BudgetsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useAction, useResource } from '@/hooks/useResource';
 import { api, withQuery } from '@/lib/api';
@@ -90,6 +91,8 @@ export function BudgetsView() {
 
   const loading = budgets.loading && !budgets.data;
 
+  if (loading) return <BudgetsSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -126,7 +129,6 @@ export function BudgetsView() {
       </div>
 
       {budgets.error ? <ErrorNote message={budgets.error} onRetry={budgets.reload} /> : null}
-      {loading ? <LoadingCard height="h-96" /> : null}
 
       {!loading ? (
         <div className="grid gap-4 lg:grid-cols-2">

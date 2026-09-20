@@ -8,7 +8,8 @@ import { StatTile } from '@/components/ui/StatTile';
 import { Meter } from '@/components/ui/Meter';
 import { Slider } from '@/components/ui/Slider';
 import { TableWrap, Td, Th } from '@/components/ui/Table';
-import { ErrorNote, LoadingCard } from '@/components/ui/States';
+import { ErrorNote } from '@/components/ui/States';
+import { FireSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { ChartFrame } from '@/components/charts/ChartFrame';
 import { FireProjection, FIRE_LEGEND } from '@/components/charts/FireProjection';
@@ -80,7 +81,7 @@ export function FireView() {
   }, [settings, corpus, result.monthsToFi, currency]);
 
   if (error) return <ErrorNote message={error} onRetry={reload} />;
-  if (loading && !data) return <LoadingCard height="h-96" />;
+  if (loading && !data) return <FireSkeleton />;
 
   return (
     <div className="space-y-5">

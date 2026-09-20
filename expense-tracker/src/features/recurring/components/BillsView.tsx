@@ -10,7 +10,8 @@ import { Modal } from '@/components/ui/Modal';
 import { Field, Input, MoneyInput, Select } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
 import { TableWrap, Td, Th } from '@/components/ui/Table';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { BillsSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { useAction, useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
@@ -70,6 +71,8 @@ export function BillsView() {
     }
   }
 
+  if (bills.loading && !bills.data) return <BillsSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -99,7 +102,6 @@ export function BillsView() {
       </div>
 
       {bills.error ? <ErrorNote message={bills.error} onRetry={bills.reload} /> : null}
-      {bills.loading && !bills.data ? <LoadingCard height="h-64" /> : null}
 
       <Card>
         <CardHeader title="Bills that repeat" subtitle="Tap the tick when you pay one" />

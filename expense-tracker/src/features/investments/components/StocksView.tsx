@@ -10,7 +10,8 @@ import { StatTile } from '@/components/ui/StatTile';
 import { Field, Select } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { TableWrap, Td, Th } from '@/components/ui/Table';
-import { EmptyState, ErrorNote, LoadingCard } from '@/components/ui/States';
+import { EmptyState, ErrorNote } from '@/components/ui/States';
+import { StocksSkeleton } from '@/components/skeletons/PageSkeletons';
 import { useToast } from '@/components/ui/Toast';
 import { ChartFrame } from '@/components/charts/ChartFrame';
 import { RankedBars } from '@/components/charts/RankedBars';
@@ -64,6 +65,8 @@ export function StocksView() {
   );
   const biggest = withPnl.slice().sort((a, b) => b.weight - a.weight)[0];
 
+  if (loading && !data) return <StocksSkeleton />;
+
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -104,7 +107,6 @@ export function StocksView() {
       </div>
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
-      {loading && !data ? <LoadingCard height="h-72" /> : null}
 
       {holdings.length ? (
         <>

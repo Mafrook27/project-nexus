@@ -110,6 +110,65 @@ button {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   Skeletons. A sweep of light across a placeholder shape reads as "loading"
+   without a spinner, and because each placeholder is the size of the real
+   thing, nothing jumps when the data lands.
+--------------------------------------------------------------------------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #eceef2;
+  border-radius: 8px;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.72) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: paisa-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes paisa-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Staggering the sweep stops a wall of placeholders pulsing in lockstep. */
+.skeleton-stagger > *:nth-child(2) .skeleton::after,
+.skeleton-stagger > *:nth-child(2)::after {
+  animation-delay: 0.12s;
+}
+.skeleton-stagger > *:nth-child(3) .skeleton::after,
+.skeleton-stagger > *:nth-child(3)::after {
+  animation-delay: 0.24s;
+}
+.skeleton-stagger > *:nth-child(4) .skeleton::after,
+.skeleton-stagger > *:nth-child(4)::after {
+  animation-delay: 0.36s;
+}
+.skeleton-stagger > *:nth-child(n + 5) .skeleton::after,
+.skeleton-stagger > *:nth-child(n + 5)::after {
+  animation-delay: 0.48s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+  .skeleton {
+    opacity: 0.7;
+  }
+}
+
 @keyframes paisa-rise {
   from {
     opacity: 0;
