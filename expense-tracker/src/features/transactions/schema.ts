@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { BUCKETS, NEED_LEVELS, TXN_TYPES } from '@/lib/constants';
+import { TXN_STATUSES } from '@/lib/intelligence';
 import {
   zEnum,
   zISODate,
@@ -20,6 +21,8 @@ export const transactionSchema = z.object({
   person_id: zOptionalId,
   merchant: zOptionalText(120),
   note: zOptionalText(400),
+  reason: zOptionalText(400),
+  status: zEnum(TXN_STATUSES).default('confirmed'),
 });
 export const transactionUpdateSchema = transactionSchema.partial();
 
@@ -30,6 +33,8 @@ export const transactionFilterSchema = z.object({
   type: z.string().optional(),
   bucket: z.string().optional(),
   need_level: z.string().optional(),
+  status: z.string().optional(),
+  source: z.string().optional(),
   category_id: z.string().optional(),
   account_id: z.string().optional(),
   person_id: z.string().optional(),
@@ -51,6 +56,13 @@ export type Transaction = {
   person_id: string | null;
   merchant: string | null;
   note: string | null;
+  reason: string | null;
+  status: 'detected' | 'confirmed' | 'categorized' | 'ignored';
+  source: 'manual' | 'sms' | 'notification' | 'import';
+  payment_method: string;
+  bank: string | null;
+  account_last4: string | null;
+  transaction_at: string | null;
   category_name?: string | null;
   category_color?: string | null;
   category_icon?: string | null;

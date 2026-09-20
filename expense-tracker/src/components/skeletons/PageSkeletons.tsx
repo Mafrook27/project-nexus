@@ -492,6 +492,50 @@ export function SettingsSkeleton() {
   );
 }
 
+export function ReviewSkeleton() {
+  return (
+    <div className="space-y-5">
+      <div>
+        <Skeleton className="h-7 w-40 rounded-lg" />
+        <Skeleton className="mt-2.5 h-3.5 w-80 max-w-full rounded" />
+      </div>
+      <div className="skeleton-stagger space-y-4">
+        {[0, 1, 2].map((i) => (
+          <SkeletonCard key={i}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <Skeleton className="h-2.5 w-32 rounded" />
+                <Skeleton className="mt-3 h-8 w-36 rounded-lg" />
+                <Skeleton className="mt-3 h-3.5 w-28 rounded" />
+                <Skeleton className="mt-2 h-2.5 w-52 rounded" />
+              </div>
+              <Skeleton className="h-5 w-24 rounded-md" />
+            </div>
+            <Skeleton className="mt-5 h-3 w-48 rounded" />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {Array.from({ length: 9 }, (_, c) => (
+                <Skeleton key={c} className="h-8 w-24 rounded-xl" />
+              ))}
+            </div>
+            <Skeleton className="mt-5 h-3 w-32 rounded" />
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((c) => (
+                <Skeleton key={c} className="h-9 rounded-xl" />
+              ))}
+            </div>
+            <Skeleton className="mt-5 h-10 w-full rounded-xl" />
+            <div className="mt-5 flex justify-end gap-2 border-t border-line pt-4">
+              <Skeleton className="h-8 w-28 rounded-lg" />
+              <Skeleton className="h-8 w-20 rounded-lg" />
+              <Skeleton className="h-8 w-20 rounded-lg" />
+            </div>
+          </SkeletonCard>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SipSkeleton() {
   return (
     <div className="space-y-4">

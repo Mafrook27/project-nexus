@@ -19,7 +19,9 @@ export type TransactionFilter = z.infer<typeof transactionFilterSchema>;
 
 /** Builds the WHERE clause shared by the list and the totals query. */
 function buildWhere(userId: string, f: TransactionFilter) {
-  const where: string[] = ['t.user_id = $1'];
+  // An ignored row is a mistake, a refund or a duplicate the user rejected.
+  // It stays in the table for the audit trail but never counts as money.
+  const where: string[] = ['t.user_id = $1', "t.status <> 'ignored'"];
   const params: unknown[] = [userId];
   /** Registers a value and returns its placeholder, e.g. `$3`. */
   const p = (value: unknown) => {
@@ -36,6 +38,8 @@ function buildWhere(userId: string, f: TransactionFilter) {
   if (f.type) where.push(`t.type = ${p(f.type)}`);
   if (f.bucket) where.push(`t.bucket = ${p(f.bucket)}`);
   if (f.need_level) where.push(`t.need_level = ${p(f.need_level)}`);
+  if (f.status) where.push(`t.status = ${p(f.status)}`);
+  if (f.source) where.push(`t.source = ${p(f.source)}`);
   if (f.category_id) where.push(`t.category_id = ${p(f.category_id)}`);
   if (f.person_id) where.push(`t.person_id = ${p(f.person_id)}`);
   if (f.account_id) {

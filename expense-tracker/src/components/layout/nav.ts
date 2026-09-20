@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Inbox,
   CalendarClock,
   Calculator,
   CandlestickChart,
@@ -18,6 +19,8 @@ export type NavItem = {
   label: string;
   icon: typeof LayoutDashboard;
   short?: string;
+  /** Names a live counter the shell renders beside the label. */
+  badge?: 'review';
 };
 
 export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
@@ -32,6 +35,7 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     title: 'Every month',
     items: [
       { href: '/transactions', label: 'Money in & out', icon: Receipt, short: 'Money' },
+      { href: '/review', label: 'Needs a look', icon: Inbox, short: 'Review', badge: 'review' },
       { href: '/budgets', label: 'Budgets', icon: Target },
       { href: '/bills', label: 'Bills & loans', icon: CalendarClock, short: 'Bills' },
     ],
@@ -58,10 +62,12 @@ export const SETTINGS_ITEM: NavItem = { href: '/settings', label: 'Settings', ic
 
 export const ALL_NAV = [...NAV_GROUPS.flatMap((g) => g.items), SETTINGS_ITEM];
 
-/** The five that fit a phone's bottom bar. */
+/** The four that fit a phone's bottom bar, found by href so the order of the
+ *  sidebar can change without silently repointing them. */
+const byHref = (href: string) => ALL_NAV.find((i) => i.href === href)!;
 export const MOBILE_NAV = [
-  ALL_NAV[0], // dashboard
-  ALL_NAV[2], // transactions
-  ALL_NAV[6], // investments
-  ALL_NAV[8], // fire
+  byHref('/dashboard'),
+  byHref('/transactions'),
+  byHref('/review'),
+  byHref('/fire'),
 ];

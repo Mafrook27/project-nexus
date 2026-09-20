@@ -17,6 +17,8 @@ export const { GET, PATCH, DELETE } = itemRoutes({
     'person_id',
     'merchant',
     'note',
+    'reason',
+    'status',
   ],
   createSchema: transactionSchema,
   updateSchema: transactionUpdateSchema,

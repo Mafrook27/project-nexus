@@ -2,7 +2,15 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { ArrowRight, CalendarClock, Landmark, ShieldCheck, TrendingUp, Wallet } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarClock,
+  Inbox,
+  Landmark,
+  ShieldCheck,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { StatTile } from '@/components/ui/StatTile';
 import { Meter } from '@/components/ui/Meter';
@@ -51,6 +59,40 @@ export function DashboardView() {
         </h1>
         <MonthPicker value={month} onChange={setMonth} />
       </header>
+
+      {/* Anything the phone picked up that still needs a human answer. */}
+      {data.needsAttention.length ? (
+        <Link href="/review" className="block">
+          <Card className="border-warn/40 bg-warn-soft/50 transition hover:border-warn/70">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warn/20 text-[#7a5200]">
+                  <Inbox className="size-4.5" />
+                </span>
+                <div>
+                  <p className="text-[14.5px] font-semibold text-ink">
+                    {data.needsAttention.length}{' '}
+                    {data.needsAttention.length === 1 ? 'spend needs' : 'spends need'} your
+                    attention
+                  </p>
+                  <p className="mt-0.5 text-[13px] text-ink-soft">
+                    {data.needsAttention
+                      .slice(0, 3)
+                      .map(
+                        (t) =>
+                          `${formatMoney(Number(t.amount), currency)} ${t.merchant ?? 'unknown'}`,
+                      )
+                      .join(' · ')}
+                  </p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[13px] font-medium text-brand">
+                Sort them out <ArrowRight className="size-3.5" />
+              </span>
+            </div>
+          </Card>
+        </Link>
+      ) : null}
 
       {/* What happened to this month's salary, and what of it was wasted. */}
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">

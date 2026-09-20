@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS accounts (
   type            text NOT NULL DEFAULT 'bank',  -- bank | cash | wallet | credit_card
   institution     text,
   opening_balance numeric(16,2) NOT NULL DEFAULT 0,
+  -- Last four digits as the bank writes them, so an incoming SMS can be
+  -- matched to the right account without you linking it by hand.
+  last4         text,
   is_emergency    boolean NOT NULL DEFAULT false,
   archived        boolean NOT NULL DEFAULT false,
   created_at      timestamptz NOT NULL DEFAULT now()
@@ -66,7 +69,26 @@ CREATE TABLE IF NOT EXISTS transactions (
   note          text,
   -- Was this money well spent? need | want | waste
   need_level    text NOT NULL DEFAULT 'need',
-  created_at    timestamptz NOT NULL DEFAULT now()
+
+  -- ---- Transaction intelligence -----------------------------------------
+  -- Where the row came from. Anything not 'manual' arrived automatically and
+  -- has not been looked at by a human yet.
+  source        text NOT NULL DEFAULT 'manual',   -- manual | sms | notification | import
+  status        text NOT NULL DEFAULT 'confirmed',-- detected | confirmed | categorized | ignored
+  payment_method text NOT NULL DEFAULT 'unknown', -- upi | card | cash | bank_transfer | atm | unknown
+  bank          text,
+  account_last4 text,
+  -- Precise instant, where txn_date is only the day. Dedup needs the seconds.
+  transaction_at timestamptz,
+  -- Why you spent it, in your own words.
+  reason        text,
+  -- The bank's own reference (UPI RRN, card auth code). Globally unique when
+  -- present, which makes it the strongest duplicate signal there is.
+  raw_reference text,
+  -- The message the parser read, kept so a mis-parse can be diagnosed.
+  raw_message   text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS tx_user_date_idx ON transactions (user_id, txn_date DESC);
 CREATE INDEX IF NOT EXISTS tx_user_cat_idx  ON transactions (user_id, category_id);
@@ -158,6 +180,40 @@ CREATE TABLE IF NOT EXISTS goals (
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
+-- A phone that is allowed to post transactions on your behalf. The plaintext
+-- token is shown once at pairing and never stored.
+CREATE TABLE IF NOT EXISTS devices (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name         text NOT NULL,
+  platform     text NOT NULL DEFAULT 'android',  -- android | ios | other
+  token_hash   text NOT NULL,
+  last_seen_at timestamptz,
+  synced_count int NOT NULL DEFAULT 0,
+  revoked_at   timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS devices_user_idx ON devices (user_id);
+
+-- "Swiggy is always Food." Learned from what you tell the review queue, so the
+-- app stops asking about merchants you have already explained.
+CREATE TABLE IF NOT EXISTS merchant_rules (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  pattern      text NOT NULL,                    -- matched case-insensitively
+  match_type   text NOT NULL DEFAULT 'contains', -- contains | exact
+  category_id  uuid REFERENCES categories(id) ON DELETE CASCADE,
+  bucket       text,
+  need_level   text,
+  -- true: categorise silently. false: still ask, but pre-fill the answer.
+  auto_confirm boolean NOT NULL DEFAULT true,
+  hits         int NOT NULL DEFAULT 0,
+  last_used_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, pattern, match_type)
+);
+CREATE INDEX IF NOT EXISTS merchant_rules_user_idx ON merchant_rules (user_id);
+
 -- One row per month, written by the app so the net-worth chart survives edits.
 CREATE TABLE IF NOT EXISTS net_worth_snapshots (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -181,3 +237,34 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS need_level text NOT NULL DEFAU
 ALTER TABLE categories   ADD COLUMN IF NOT EXISTS default_need_level text NOT NULL DEFAULT 'need';
 
 CREATE INDEX IF NOT EXISTS tx_user_need_idx ON transactions (user_id, need_level);
+
+-- Transaction intelligence, for databases created before it existed.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS source         text NOT NULL DEFAULT 'manual';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status         text NOT NULL DEFAULT 'confirmed';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS payment_method text NOT NULL DEFAULT 'unknown';
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS bank           text;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS account_last4  text;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_at timestamptz;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS reason         text;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS raw_reference  text;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS raw_message    text;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at     timestamptz NOT NULL DEFAULT now();
+ALTER TABLE accounts     ADD COLUMN IF NOT EXISTS last4          text;
+
+-- Rows that pre-date the column have no precise time; midday keeps them inside
+-- their own day in every timezone this app is likely to run in.
+UPDATE transactions SET transaction_at = txn_date + time '12:00'
+ WHERE transaction_at IS NULL;
+
+-- The bank's reference is unique when the bank sends one, so the same SMS
+-- arriving twice can never create two rows.
+CREATE UNIQUE INDEX IF NOT EXISTS tx_user_reference_uniq
+  ON transactions (user_id, raw_reference)
+  WHERE raw_reference IS NOT NULL;
+
+-- The review queue reads this constantly.
+CREATE INDEX IF NOT EXISTS tx_user_status_idx ON transactions (user_id, status)
+  WHERE status = 'detected';
+
+-- Supports the cross-channel duplicate window scan.
+CREATE INDEX IF NOT EXISTS tx_user_at_idx ON transactions (user_id, transaction_at DESC);

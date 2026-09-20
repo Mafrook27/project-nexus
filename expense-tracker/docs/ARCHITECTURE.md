@@ -184,6 +184,18 @@ view. No chart in this app encodes anything by colour alone.
 
 ---
 
+## Transaction intelligence
+
+Automatically detected spends have their own write path, their own status
+machine and their own security model. It is large enough to deserve its own
+document: **docs/TRANSACTION-INTELLIGENCE.md**.
+
+Two things to know from here. `features/transactions/parsers/` deliberately
+imports nothing from React, Node or the database, so the Android companion can
+use it unchanged. And every money query in the app filters
+`status <> 'ignored'` — a row the user rejected stays in the table for the
+audit trail but is not money.
+
 ## Loading states
 
 `components/ui/Skeleton.tsx` holds the blocks (a stat, a chart, a row, a meter,

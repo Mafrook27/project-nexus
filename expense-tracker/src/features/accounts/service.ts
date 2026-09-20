@@ -10,11 +10,11 @@ export const ACCOUNT_BALANCE_SQL = `
   a.opening_balance
   + COALESCE((
       SELECT SUM(CASE t.type WHEN 'income' THEN t.amount ELSE -t.amount END)
-      FROM transactions t WHERE t.account_id = a.id
+      FROM transactions t WHERE t.account_id = a.id AND t.status <> 'ignored'
     ), 0)
   + COALESCE((
       SELECT SUM(t.amount) FROM transactions t
-      WHERE t.to_account_id = a.id AND t.type = 'transfer'
+      WHERE t.to_account_id = a.id AND t.type = 'transfer' AND t.status <> 'ignored'
     ), 0)
 `;
 

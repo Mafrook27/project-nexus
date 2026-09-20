@@ -14,7 +14,7 @@ import { QuickAdd } from '@/features/transactions/components/QuickAdd';
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { me, loading: loadingMe } = useReference();
+  const { me, reviewCount, loading: loadingMe } = useReference();
   const [drawer, setDrawer] = useState(false);
   const [quickAdd, setQuickAdd] = useState(false);
 
@@ -39,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Plus className="size-4" /> Add transaction
           </button>
         </div>
-        <NavList pathname={pathname} />
+        <NavList pathname={pathname} reviewCount={reviewCount} />
         <Footer me={me} loading={loadingMe} onSignOut={signOut} />
       </aside>
 
@@ -62,7 +62,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <X className="size-4.5" />
               </button>
             </div>
-            <NavList pathname={pathname} onNavigate={() => setDrawer(false)} />
+            <NavList
+              pathname={pathname}
+              reviewCount={reviewCount}
+              onNavigate={() => setDrawer(false)}
+            />
             <Footer me={me} loading={loadingMe} onSignOut={signOut} />
           </div>
         </div>
@@ -105,7 +109,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                   active ? 'text-brand' : 'text-ink-muted',
                 )}
               >
-                <Icon className="size-5" strokeWidth={active ? 2.3 : 1.8} />
+                <span className="relative">
+                  <Icon className="size-5" strokeWidth={active ? 2.3 : 1.8} />
+                  {item.badge === 'review' && reviewCount > 0 ? (
+                    <span className="num-mono absolute -top-1.5 -right-2.5 rounded-full bg-bad px-1 py-px text-[10px] font-semibold text-white">
+                      {reviewCount > 9 ? '9+' : reviewCount}
+                    </span>
+                  ) : null}
+                </span>
                 {item.short ?? item.label}
               </Link>
             );
@@ -129,7 +140,15 @@ function Brand() {
   );
 }
 
-function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function NavList({
+  pathname,
+  reviewCount,
+  onNavigate,
+}: {
+  pathname: string;
+  reviewCount: number;
+  onNavigate?: () => void;
+}) {
   return (
     <div className="flex-1 overflow-y-auto px-3 pb-4">
       {NAV_GROUPS.map((group) => (
@@ -154,7 +173,12 @@ function NavList({ pathname, onNavigate }: { pathname: string; onNavigate?: () =
                     )}
                   >
                     <Icon className="size-4.5" strokeWidth={active ? 2.2 : 1.8} />
-                    {item.label}
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {item.badge === 'review' && reviewCount > 0 ? (
+                      <span className="num-mono rounded-md bg-bad px-1.5 py-0.5 text-[11px] font-semibold text-white">
+                        {reviewCount}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

@@ -23,6 +23,8 @@ type Ctx = {
   accounts: Account[];
   currency: string;
   fire: Required<FireSettings>;
+  /** How many automatically detected transactions are waiting for an answer. */
+  reviewCount: number;
   loading: boolean;
   refresh: () => Promise<void>;
 };
@@ -34,6 +36,7 @@ const ReferenceContext = createContext<Ctx>({
   accounts: [],
   currency: 'INR',
   fire: DEFAULT_FIRE_SETTINGS,
+  reviewCount: 0,
   loading: true,
   refresh: async () => {},
 });
@@ -46,18 +49,20 @@ export function ReferenceDataProvider({ children }: { children: ReactNode }) {
     people: Person[];
     categories: Category[];
     accounts: Account[];
+    reviewCount: number;
     loading: boolean;
-  }>({ me: null, people: [], categories: [], accounts: [], loading: true });
+  }>({ me: null, people: [], categories: [], accounts: [], reviewCount: 0, loading: true });
 
   const refresh = useCallback(async () => {
     try {
-      const [me, people, categories, accounts] = await Promise.all([
+      const [me, people, categories, accounts, review] = await Promise.all([
         api.get<Me>('/api/auth/me'),
         api.get<Person[]>('/api/people'),
         api.get<Category[]>('/api/categories'),
         api.get<Account[]>('/api/accounts'),
+        api.get<{ count: number }>('/api/transactions/review').catch(() => ({ count: 0 })),
       ]);
-      setState({ me, people, categories, accounts, loading: false });
+      setState({ me, people, categories, accounts, reviewCount: review.count, loading: false });
     } catch {
       setState((s) => ({ ...s, loading: false }));
     }

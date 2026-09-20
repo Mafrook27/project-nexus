@@ -310,7 +310,47 @@ async function main() {
     ],
   );
 
+  // A few spends "detected by the phone", so the review queue is not empty on
+  // a fresh demo. One has no merchant, which is the case worth designing for.
+  const detected: [number, string | null, string, string, string, number][] = [
+    [1250, 'Amazon', 'upi', 'HDFC Bank', '1234', 2],
+    [420, 'Swiggy', 'upi', 'HDFC Bank', '1234', 6],
+    [780, null, 'card', 'HDFC Bank', '9012', 26],
+  ];
+  for (const [amount, merchant, method, bank, last4, hoursAgo] of detected) {
+    const when = new Date(Date.now() - hoursAgo * 3600_000);
+    await query(
+      `INSERT INTO transactions
+         (user_id, account_id, person_id, type, bucket, need_level, amount, txn_date,
+          transaction_at, merchant, source, status, payment_method, bank, account_last4,
+          raw_reference)
+       VALUES ($1,$2,$3,'expense','personal','need',$4,$5::timestamptz::date,$5,$6,
+               'sms','detected',$7,$8,$9,$10)`,
+      [
+        userId,
+        salary,
+        me,
+        amount,
+        when.toISOString(),
+        merchant,
+        method,
+        bank,
+        last4,
+        `SEED${Math.floor(Math.random() * 1e12)}`,
+      ],
+    );
+  }
+
+  // One rule already learned, so the Settings card shows what it looks like.
+  await query(
+    `INSERT INTO merchant_rules (user_id, pattern, match_type, category_id, bucket, need_level, auto_confirm, hits)
+     VALUES ($1, 'Swiggy', 'contains', $2, 'personal', 'want', true, 4)
+     ON CONFLICT (user_id, pattern, match_type) DO NOTHING`,
+    [userId, catBy('Food & dining')],
+  );
+
   console.log(`✓ seeded ${inserted} transactions, 13 investments, 4 SIPs, 4 goals`);
+  console.log('  plus 3 detected spends waiting in Needs a look');
   console.log(`  sign in with ${EMAIL} / ${PASSWORD}`);
   await closePool();
 }

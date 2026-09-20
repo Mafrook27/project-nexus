@@ -17,6 +17,8 @@ import { api } from '@/lib/api';
 import { BUCKETS, RELATIONS, labelOf } from '@/lib/constants';
 import { SERIES } from '@/lib/viz';
 import { useReference } from '@/features/settings/ReferenceData';
+import { DevicesCard } from '@/features/devices/components/DevicesCard';
+import { RulesCard } from '@/features/transactions/intelligence/components/RulesCard';
 import type { Person } from '@/features/people/schema';
 import type { Category } from '@/features/categories/schema';
 
@@ -40,6 +42,8 @@ export function SettingsView() {
       </header>
 
       <ProfileCard />
+      <DevicesCard />
+      <RulesCard />
       <PeopleCard />
       <CategoriesCard />
 

@@ -30,6 +30,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
     needSplit,
     wasteCategories,
     needTrend,
+    needsAttention,
     topMerchants,
     recentTx,
   ] = await Promise.all([
@@ -44,7 +45,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
     query<{ id: string; name: string; color: string; bucket: string; amount: number }>(
       `SELECT c.id, c.name, c.color, c.bucket, COALESCE(SUM(t.amount), 0) AS amount
        FROM transactions t JOIN categories c ON c.id = t.category_id
-       WHERE t.user_id = $1 AND t.type = 'expense' AND t.txn_date BETWEEN $2 AND $3
+       WHERE t.user_id = $1 AND t.status <> 'ignored' AND t.type = 'expense' AND t.txn_date BETWEEN $2 AND $3
        GROUP BY c.id, c.name, c.color, c.bucket
        ORDER BY amount DESC`,
       [userId, start, end],
@@ -56,7 +57,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
               COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.bucket = 'home'     THEN t.amount ELSE 0 END), 0) AS home,
               COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.bucket = 'personal' THEN t.amount ELSE 0 END), 0) AS personal
        FROM transactions t
-       WHERE t.user_id = $1 AND t.txn_date >= $2 AND t.txn_date <= $3
+       WHERE t.user_id = $1 AND t.status <> 'ignored' AND t.txn_date >= $2 AND t.txn_date <= $3
        GROUP BY 1 ORDER BY 1`,
       [userId, monthRange(trendMonths[0]).start, end],
     ),
@@ -86,7 +87,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
       `SELECT b.category_id, c.name, c.color, c.bucket, b.amount,
               COALESCE((
                 SELECT SUM(t.amount) FROM transactions t
-                WHERE t.user_id = b.user_id AND t.category_id = b.category_id
+                WHERE t.user_id = b.user_id AND t.category_id = b.category_id AND t.status <> 'ignored'
                   AND t.type = 'expense' AND t.txn_date BETWEEN $2 AND $3
               ), 0) AS spent
        FROM budgets b JOIN categories c ON c.id = b.category_id
@@ -97,7 +98,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
     query<{ need_level: string; amount: number }>(
       `SELECT need_level, COALESCE(SUM(amount), 0) AS amount
        FROM transactions
-       WHERE user_id = $1 AND type = 'expense' AND txn_date BETWEEN $2 AND $3
+       WHERE user_id = $1 AND status <> 'ignored' AND type = 'expense' AND txn_date BETWEEN $2 AND $3
        GROUP BY need_level`,
       [userId, start, end],
     ),
@@ -107,7 +108,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
               SUM(t.amount) AS amount, COUNT(*)::int AS n
        FROM transactions t
        LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.user_id = $1 AND t.type = 'expense' AND t.need_level = 'waste'
+       WHERE t.user_id = $1 AND t.status <> 'ignored' AND t.type = 'expense' AND t.need_level = 'waste'
          AND t.txn_date BETWEEN $2 AND $3
        GROUP BY 1, 2 ORDER BY amount DESC LIMIT 5`,
       [userId, start, end],
@@ -118,15 +119,28 @@ export async function getDashboard(userId: string, month = monthKey()) {
               COALESCE(SUM(CASE WHEN need_level = 'want'  THEN amount ELSE 0 END), 0) AS want,
               COALESCE(SUM(CASE WHEN need_level = 'need'  THEN amount ELSE 0 END), 0) AS need
        FROM transactions
-       WHERE user_id = $1 AND type = 'expense' AND txn_date >= $2 AND txn_date <= $3
+       WHERE user_id = $1 AND status <> 'ignored' AND type = 'expense' AND txn_date >= $2 AND txn_date <= $3
        GROUP BY 1 ORDER BY 1`,
       [userId, monthRange(trendMonths[0]).start, end],
+    ),
+    query<{
+      id: string;
+      amount: number;
+      merchant: string | null;
+      transaction_at: string | null;
+      source: string;
+    }>(
+      `SELECT id, amount, merchant, transaction_at, source
+       FROM transactions
+       WHERE user_id = $1 AND status = 'detected'
+       ORDER BY transaction_at DESC NULLS LAST LIMIT 4`,
+      [userId],
     ),
     query<{ merchant: string; amount: number; n: number }>(
       `SELECT COALESCE(NULLIF(t.merchant, ''), 'Uncategorised') AS merchant,
               SUM(t.amount) AS amount, COUNT(*)::int AS n
        FROM transactions t
-       WHERE t.user_id = $1 AND t.type = 'expense' AND t.txn_date BETWEEN $2 AND $3
+       WHERE t.user_id = $1 AND t.status <> 'ignored' AND t.type = 'expense' AND t.txn_date BETWEEN $2 AND $3
        GROUP BY 1 ORDER BY amount DESC LIMIT 5`,
       [userId, start, end],
     ),
@@ -137,7 +151,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
        FROM transactions t
        LEFT JOIN categories c ON c.id = t.category_id
        LEFT JOIN accounts a ON a.id = t.account_id
-       WHERE t.user_id = $1
+       WHERE t.user_id = $1 AND t.status <> 'ignored'
        ORDER BY t.txn_date DESC, t.created_at DESC LIMIT 8`,
       [userId],
     ),
@@ -219,6 +233,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
       prevExpense: prevTotals.expense,
       avgMonthlyExpense,
     },
+    needsAttention,
     cashflow: {
       salary: income,
       spent: expense,
@@ -289,7 +304,7 @@ async function monthAggregate(userId: string, start: string, end: string) {
        COALESCE(SUM(CASE WHEN type = 'expense' AND bucket = 'home'     THEN amount ELSE 0 END), 0) AS home,
        COALESCE(SUM(CASE WHEN type = 'expense' AND bucket = 'personal' THEN amount ELSE 0 END), 0) AS personal,
        COALESCE(SUM(CASE WHEN type = 'transfer' THEN amount ELSE 0 END), 0) AS invested
-     FROM transactions WHERE user_id = $1 AND txn_date BETWEEN $2 AND $3`,
+     FROM transactions WHERE user_id = $1 AND status <> 'ignored' AND txn_date BETWEEN $2 AND $3`,
     [userId, start, end],
   );
   return row ?? { income: 0, expense: 0, home: 0, personal: 0, invested: 0 };

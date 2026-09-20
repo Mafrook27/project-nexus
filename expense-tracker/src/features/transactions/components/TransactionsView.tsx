@@ -242,6 +242,11 @@ export function TransactionsView() {
                       {t.person_name ? ` · ${t.person_name}` : ''}
                     </p>
                   </div>
+                  {t.source !== 'manual' ? (
+                    <Badge tone={t.status === 'detected' ? 'warn' : 'brand'}>
+                      {t.status === 'detected' ? 'Needs a look' : 'Auto'}
+                    </Badge>
+                  ) : null}
                   {t.type === 'expense' && t.need_level === 'waste' ? (
                     <Badge tone="bad">Wasted</Badge>
                   ) : t.type === 'expense' && t.need_level === 'want' ? (
