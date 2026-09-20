@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BUCKETS, TXN_TYPES } from '@/lib/constants';
+import { BUCKETS, NEED_LEVELS, TXN_TYPES } from '@/lib/constants';
 import {
   zEnum,
   zISODate,
@@ -11,6 +11,7 @@ import {
 export const transactionSchema = z.object({
   type: zEnum(TXN_TYPES).default('expense'),
   bucket: zEnum(BUCKETS).default('personal'),
+  need_level: zEnum(NEED_LEVELS).default('need'),
   amount: zPositiveMoney,
   txn_date: zISODate,
   account_id: zOptionalId,
@@ -28,6 +29,7 @@ export const transactionFilterSchema = z.object({
   to: z.string().optional(),
   type: z.string().optional(),
   bucket: z.string().optional(),
+  need_level: z.string().optional(),
   category_id: z.string().optional(),
   account_id: z.string().optional(),
   person_id: z.string().optional(),
@@ -40,6 +42,7 @@ export type Transaction = {
   id: string;
   type: 'expense' | 'income' | 'transfer';
   bucket: 'home' | 'personal';
+  need_level: 'need' | 'want' | 'waste';
   amount: number;
   txn_date: string;
   account_id: string | null;

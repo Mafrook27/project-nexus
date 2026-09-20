@@ -47,9 +47,7 @@ export function GoalsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Goals</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            A car, a wedding, a house deposit, your parents&apos; medical buffer.
-          </p>
+
         </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           <Plus className="size-4" /> Add goal
@@ -57,13 +55,13 @@ export function GoalsView() {
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatTile label="Total target" value={formatMoney(totalTarget, currency)} icon={<Flag className="size-4" />} />
+        <StatTile label="You need" value={formatMoney(totalTarget, currency)} icon={<Flag className="size-4" />} />
         <StatTile
-          label="Saved so far"
+          label="You have"
           value={formatMoney(totalSaved, currency)}
           sub={totalTarget ? `${((totalSaved / totalTarget) * 100).toFixed(0)}% of the way` : undefined}
         />
-        <StatTile label="Monthly set aside" value={formatMoney(monthlyNeeded, currency)} />
+        <StatTile label="Per month" value={formatMoney(monthlyNeeded, currency)} />
       </div>
 
       {error ? <ErrorNote message={error} onRetry={reload} /> : null}
@@ -108,7 +106,7 @@ export function GoalsView() {
                   </div>
                 </div>
 
-                <p className="tnum mt-3 text-[22px] font-semibold text-ink">
+                <p className="num-mono mt-3 text-[22px] font-semibold text-ink">
                   {formatMoney(saved, currency)}
                   <span className="ml-1.5 text-[13px] font-normal text-ink-muted">
                     of {formatMoney(target, currency)}
@@ -144,7 +142,7 @@ export function GoalsView() {
           <EmptyState
             icon={<Flag className="size-5" />}
             title="No goals yet"
-            description="Name the thing you are saving for and the app will tell you when you get there."
+            description="Name what you are saving for and this tells you when you will get there."
             action={
               <Button size="sm" onClick={() => setAdding(true)}>
                 <Plus className="size-4" /> Add goal
@@ -277,7 +275,7 @@ function GoalModal({
               required
             />
           </Field>
-          <Field label="Saved so far">
+          <Field label="You have">
             <MoneyInput
               symbol={symbol}
               value={form.saved_amount}

@@ -30,10 +30,11 @@ export function FireCard({
         <div>
           <h2 className="flex items-center gap-1.5 text-[15px] font-semibold text-ink">
             <Flame className="size-4 text-brand" />
-            Financial independence
+            Money for life
           </h2>
           <p className="mt-0.5 text-[13px] text-ink-muted">
-            Corpus that funds {formatMoney(fire.annualExpensesToday / 12, currency)} a month, forever
+            Enough to pay you {formatMoney(fire.annualExpensesToday / 12, currency)} a month without
+            a job
           </p>
         </div>
         <Link
@@ -44,7 +45,7 @@ export function FireCard({
         </Link>
       </header>
 
-      <p className="tnum text-[34px] leading-none font-semibold text-ink">
+      <p className="num-mono text-[34px] leading-none font-semibold text-ink">
         {fire.progressPct.toFixed(1)}%
       </p>
       <p className="mt-1.5 text-[13px] text-ink-soft">
@@ -59,10 +60,10 @@ export function FireCard({
         className="mt-4"
         caption={
           fire.achieved
-            ? 'Goal reached — your corpus already covers your expenses.'
+            ? 'Done. Your money already covers your life.'
             : yearsLeft === null
-              ? 'Add a monthly investment amount in Settings to see a target date.'
-              : `On the current plan you get there in about ${yearsLeft.toFixed(1)} years, around age ${Math.round(fire.fiAge ?? 0)}.`
+              ? 'Set how much you invest each month to see a date.'
+              : `About ${yearsLeft.toFixed(1)} years away, around age ${Math.round(fire.fiAge ?? 0)}.`
         }
       />
 
@@ -79,8 +80,8 @@ export function FireCard({
               {m.reached ? <Check className="size-3" /> : <Lock className="size-2.5" />}
             </span>
             <span className={m.reached ? 'font-medium text-ink' : 'text-ink-soft'}>{m.label}</span>
-            <span className="tnum ml-auto text-ink-muted">{compactMoney(m.target, currency)}</span>
-            <span className="tnum w-10 text-right text-[12px] text-ink-muted">
+            <span className="num-mono ml-auto text-ink-muted">{compactMoney(m.target, currency)}</span>
+            <span className="num-mono w-10 text-right text-[12px] text-ink-muted">
               {m.pct.toFixed(0)}%
             </span>
           </li>

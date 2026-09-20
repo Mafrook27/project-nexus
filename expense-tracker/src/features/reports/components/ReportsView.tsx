@@ -18,6 +18,7 @@ import { withQuery } from '@/lib/api';
 import { formatMoney, pctChange } from '@/lib/money';
 import { monthKey, monthLabel } from '@/lib/date';
 import { SERIES, foldTail } from '@/lib/viz';
+import { NEED_COLORS } from '@/lib/constants';
 import type { DashboardData } from '@/features/dashboard/service';
 
 /** The read-only analysis view: twelve months of behaviour, in one place. */
@@ -56,6 +57,7 @@ export function ReportsView() {
     month: t.month,
     rate: t.income > 0 ? Math.round(((t.income - t.expense) / t.income) * 100) : 0,
   }));
+  const wastedYear = data.spendQuality.trend.reduce((s, t) => s + Number(t.waste), 0);
   const categoryRows = foldTail(
     data.byCategory.map((c) => ({ name: c.name, value: Number(c.amount) })),
   );
@@ -65,9 +67,7 @@ export function ReportsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reports</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            The last twelve months of your money, read back to you.
-          </p>
+
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <MonthPicker value={month} onChange={setMonth} />
@@ -80,24 +80,23 @@ export function ReportsView() {
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-        <StatTile label="Income (12 mo)" value={formatMoney(yearly.income, currency)} accent={SERIES[0]} />
-        <StatTile label="Spending (12 mo)" value={formatMoney(yearly.expense, currency)} accent={SERIES[1]} />
+        <StatTile label="Earned (12 months)" value={formatMoney(yearly.income, currency)} accent={SERIES[0]} />
+        <StatTile label="Spent (12 months)" value={formatMoney(yearly.expense, currency)} accent={SERIES[1]} />
         <StatTile
-          label="Saved"
+          label="Kept"
           value={formatMoney(yearly.saved, currency)}
           sub={`${yearly.savingsRate.toFixed(0)}% savings rate`}
           accent={SERIES[2]}
         />
         <StatTile
-          label="Average month"
+          label="Typical month"
           value={formatMoney(yearly.avgExpense, currency)}
-          sub="Spending, across active months"
+          sub="What you usually spend"
         />
       </div>
 
       <ChartFrame
-        title="Income against spending"
-        subtitle="Twelve months"
+        title="Earning against spending"
         legend={TREND_LEGEND}
         height="h-[300px]"
         table={
@@ -132,8 +131,8 @@ export function ReportsView() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartFrame
-          title="Savings rate"
-          subtitle="Share of income you kept, month by month"
+          title="How much you kept"
+          subtitle="Share of your income, month by month"
           height="h-[240px]"
         >
           <AreaTrend
@@ -149,7 +148,6 @@ export function ReportsView() {
         <Card>
           <CardHeader
             title="Home against personal"
-            subtitle="Twelve-month totals"
           />
           <ShareBar
             currency={currency}
@@ -161,13 +159,13 @@ export function ReportsView() {
           <dl className="mt-5 space-y-2 border-t border-line pt-4 text-[13px]">
             <div className="flex justify-between gap-3">
               <dt className="text-ink-soft">Best saving month</dt>
-              <dd className="tnum font-medium">
+              <dd className="num-mono font-medium">
                 {yearly.best ? `${monthLabel(yearly.best.month, true)} · ${formatMoney(yearly.best.net, currency)}` : '—'}
               </dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink-soft">Heaviest spending month</dt>
-              <dd className="tnum font-medium">
+              <dd className="num-mono font-medium">
                 {yearly.worst
                   ? `${monthLabel(yearly.worst.month, true)} · ${formatMoney(yearly.worst.expense, currency)}`
                   : '—'}
@@ -175,7 +173,7 @@ export function ReportsView() {
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-ink-soft">This month against last</dt>
-              <dd className="tnum font-medium">
+              <dd className="num-mono font-medium">
                 {(() => {
                   const change = pctChange(data.totals.expense, data.totals.prevExpense);
                   if (change === null) return '—';
@@ -201,7 +199,7 @@ export function ReportsView() {
         </ChartFrame>
 
         <Card>
-          <CardHeader title="Where it went" subtitle="Every category, with its share" />
+          <CardHeader title="Every category" />
           {data.byCategory.length ? (
             <TableWrap>
               <thead>
@@ -245,9 +243,35 @@ export function ReportsView() {
         </Card>
       </div>
 
+      <Card>
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-[15px] font-semibold text-ink">Was it worth it?</h2>
+          <span className="text-[13px] text-ink-muted">{monthLabel(month, true)}</span>
+        </div>
+        <ShareBar
+          currency={currency}
+          parts={[
+            { label: 'Must have', value: data.spendQuality.needs, color: NEED_COLORS.need },
+            { label: 'Nice to have', value: data.spendQuality.wants, color: NEED_COLORS.want },
+            { label: 'Wasted', value: data.spendQuality.wasted, color: NEED_COLORS.waste },
+          ]}
+        />
+        {wastedYear > 0 ? (
+          <p className="mt-5 border-t border-line pt-4 text-[13.5px] text-ink-soft">
+            Over twelve months you marked{' '}
+            <span className="font-semibold text-ink">{formatMoney(wastedYear, currency)}</span> as
+            wasted. That is{' '}
+            <span className="font-semibold text-ink">
+              {formatMoney(wastedYear / 12, currency)}
+            </span>{' '}
+            a month you could have kept.
+          </p>
+        ) : null}
+      </Card>
+
       <ChartFrame
         title="Net worth"
-        subtitle="Cash plus investments, minus debt"
+        subtitle="Savings plus investments, minus what you owe"
         height={data.netWorthTrend.length > 1 ? 'h-[260px]' : 'h-auto'}
       >
         {data.netWorthTrend.length > 1 ? (

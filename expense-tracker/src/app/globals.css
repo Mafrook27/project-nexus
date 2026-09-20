@@ -5,7 +5,8 @@
    in daylight on a phone, and a single theme keeps contrast honest everywhere.
 --------------------------------------------------------------------------- */
 @theme {
-  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-sans: var(--font-plex-sans), system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, 'SF Mono', Menlo, monospace;
 
   --color-page: #f6f7f9;
   --color-surface: #ffffff;
@@ -55,6 +56,14 @@ body {
 /* Numbers that sit in columns must line up. */
 .tnum {
   font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* Table cells and chart axes use Plex Mono so digits are the same width. */
+.num-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Respect the iOS home indicator / notch when installed as a PWA. */

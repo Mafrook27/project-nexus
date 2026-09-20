@@ -75,9 +75,7 @@ export function BillsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Bills &amp; EMIs</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            Rent, subscriptions, insurance premiums and loan instalments.
-          </p>
+
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" onClick={() => setAddingLoan(true)}>
@@ -91,20 +89,20 @@ export function BillsView() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatTile
-          label="Committed monthly"
+          label="Fixed every month"
           value={formatMoney(monthlyCommitted, currency)}
           sub={`${activeBills.length} active bills`}
           icon={<CalendarClock className="size-4" />}
         />
-        <StatTile label="EMIs" value={formatMoney(totalEmi, currency)} sub="Every month" icon={<CreditCard className="size-4" />} />
-        <StatTile label="Outstanding debt" value={formatMoney(outstanding, currency)} />
+        <StatTile label="EMIs" value={formatMoney(totalEmi, currency)} sub="Loan instalments" icon={<CreditCard className="size-4" />} />
+        <StatTile label="You still owe" value={formatMoney(outstanding, currency)} />
       </div>
 
       {bills.error ? <ErrorNote message={bills.error} onRetry={bills.reload} /> : null}
       {bills.loading && !bills.data ? <LoadingCard height="h-64" /> : null}
 
       <Card>
-        <CardHeader title="Recurring bills" subtitle="Mark one paid and it becomes a transaction" />
+        <CardHeader title="Bills that repeat" subtitle="Tap the tick when you pay one" />
         {bills.data?.length ? (
           <ul className="divide-y divide-line">
             {bills.data.map((b) => {
@@ -127,7 +125,7 @@ export function BillsView() {
                   ) : soon ? (
                     <Badge tone="warn">In {days}d</Badge>
                   ) : null}
-                  <span className="tnum shrink-0 text-[14px] font-semibold">
+                  <span className="num-mono shrink-0 text-[14px] font-semibold">
                     {formatMoney(Number(b.amount), currency)}
                   </span>
                   <div className="flex shrink-0 gap-0.5">
@@ -162,7 +160,7 @@ export function BillsView() {
           <EmptyState
             icon={<CalendarClock className="size-5" />}
             title="No recurring bills"
-            description="Add rent, electricity, Netflix or insurance so nothing catches you off guard."
+            description="Add rent, electricity, Netflix or insurance so none of them surprise you."
             action={
               <Button size="sm" onClick={() => setAddingBill(true)}>
                 <Plus className="size-4" /> Add bill
@@ -173,7 +171,7 @@ export function BillsView() {
       </Card>
 
       <Card>
-        <CardHeader title="Loans & debt" subtitle="Counted against your net worth" />
+        <CardHeader title="Loans" />
         {loans.data?.length ? (
           <TableWrap>
             <thead>

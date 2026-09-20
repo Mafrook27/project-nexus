@@ -95,9 +95,7 @@ export function BudgetsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Budgets</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            Cap what each category is allowed to cost you.
-          </p>
+
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Segmented
@@ -114,16 +112,16 @@ export function BudgetsView() {
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatTile label="Budgeted" value={formatMoney(totalBudget, currency)} icon={<Target className="size-4" />} />
+        <StatTile label="Your limit" value={formatMoney(totalBudget, currency)} icon={<Target className="size-4" />} />
         <StatTile
           label={`Spent in ${monthLabel(month)}`}
           value={formatMoney(totalSpent, currency)}
           sub={totalBudget > 0 ? `${((totalSpent / totalBudget) * 100).toFixed(0)}% of budget` : undefined}
         />
         <StatTile
-          label="Over limit"
+          label="Over the limit"
           value={String(overCount)}
-          sub={overCount ? 'categories need attention' : 'everything within limit'}
+          sub={overCount ? 'need attention' : 'all within limit'}
         />
       </div>
 
@@ -201,7 +199,7 @@ export function BudgetsView() {
                     })}
                   </ul>
                 ) : (
-                  <EmptyState title="No categories here" description="Add one from Settings." />
+                  <EmptyState title="No categories here" description="Add one in Settings." />
                 )}
               </Card>
             );

@@ -6,6 +6,23 @@ export const BUCKETS = [
 ] as const;
 export type Bucket = (typeof BUCKETS)[number]['value'];
 
+/**
+ * The heart of budgeting for yourself: not just where money went, but whether
+ * it was worth it. Plain words on purpose - "discretionary" helps nobody.
+ */
+export const NEED_LEVELS = [
+  { value: 'need', label: 'Must have', hint: 'Rent, food, bills, travel to work, medicine' },
+  { value: 'want', label: 'Nice to have', hint: 'Eating out, movies, clothes, gadgets' },
+  { value: 'waste', label: 'Wasted', hint: 'Unused subscriptions, impulse buys, late fees' },
+] as const;
+export type NeedLevel = (typeof NEED_LEVELS)[number]['value'];
+
+export const NEED_COLORS: Record<NeedLevel, string> = {
+  need: '#2a78d6',
+  want: '#eda100',
+  waste: '#e34948',
+};
+
 export const TXN_TYPES = [
   { value: 'expense', label: 'Expense' },
   { value: 'income', label: 'Income' },
@@ -80,26 +97,27 @@ export const DEFAULT_CATEGORIES: {
   bucket: Bucket;
   icon: string;
   color: string;
+  need: NeedLevel;
 }[] = [
-  { name: 'Groceries', kind: 'expense', bucket: 'home', icon: 'ShoppingCart', color: '#4C6EF5' },
-  { name: 'Rent / EMI', kind: 'expense', bucket: 'home', icon: 'Home', color: '#1098AD' },
-  { name: 'Utilities', kind: 'expense', bucket: 'home', icon: 'Zap', color: '#0CA678' },
-  { name: 'Household help', kind: 'expense', bucket: 'home', icon: 'Users', color: '#74B816' },
-  { name: 'Healthcare', kind: 'expense', bucket: 'home', icon: 'HeartPulse', color: '#E8590C' },
-  { name: 'Education', kind: 'expense', bucket: 'home', icon: 'GraduationCap', color: '#9C36B5' },
-  { name: 'Insurance', kind: 'expense', bucket: 'home', icon: 'ShieldCheck', color: '#3B5BDB' },
-  { name: 'Food & dining', kind: 'expense', bucket: 'personal', icon: 'UtensilsCrossed', color: '#F08C00' },
-  { name: 'Transport & fuel', kind: 'expense', bucket: 'personal', icon: 'Car', color: '#1C7ED6' },
-  { name: 'Shopping', kind: 'expense', bucket: 'personal', icon: 'ShoppingBag', color: '#D6336C' },
-  { name: 'Subscriptions', kind: 'expense', bucket: 'personal', icon: 'Repeat', color: '#7048E8' },
-  { name: 'Entertainment', kind: 'expense', bucket: 'personal', icon: 'Clapperboard', color: '#F76707' },
-  { name: 'Travel', kind: 'expense', bucket: 'personal', icon: 'Plane', color: '#0B7285' },
-  { name: 'Personal care', kind: 'expense', bucket: 'personal', icon: 'Sparkles', color: '#C2255C' },
-  { name: 'Gifts & donations', kind: 'expense', bucket: 'personal', icon: 'Gift', color: '#AE3EC9' },
-  { name: 'Misc', kind: 'expense', bucket: 'personal', icon: 'CircleDashed', color: '#868E96' },
-  { name: 'Salary', kind: 'income', bucket: 'personal', icon: 'Wallet', color: '#2F9E44' },
-  { name: 'Business / freelance', kind: 'income', bucket: 'personal', icon: 'Briefcase', color: '#37B24D' },
-  { name: 'Interest & dividend', kind: 'income', bucket: 'personal', icon: 'PiggyBank', color: '#66A80F' },
-  { name: 'Rental income', kind: 'income', bucket: 'home', icon: 'Building2', color: '#5C940D' },
-  { name: 'Other income', kind: 'income', bucket: 'personal', icon: 'Plus', color: '#099268' },
+  { name: 'Groceries', kind: 'expense', bucket: 'home', icon: 'ShoppingCart', color: '#4C6EF5', need: 'need' },
+  { name: 'Rent / EMI', kind: 'expense', bucket: 'home', icon: 'Home', color: '#1098AD', need: 'need' },
+  { name: 'Utilities', kind: 'expense', bucket: 'home', icon: 'Zap', color: '#0CA678', need: 'need' },
+  { name: 'Household help', kind: 'expense', bucket: 'home', icon: 'Users', color: '#74B816', need: 'need' },
+  { name: 'Healthcare', kind: 'expense', bucket: 'home', icon: 'HeartPulse', color: '#E8590C', need: 'need' },
+  { name: 'Education', kind: 'expense', bucket: 'home', icon: 'GraduationCap', color: '#9C36B5', need: 'need' },
+  { name: 'Insurance', kind: 'expense', bucket: 'home', icon: 'ShieldCheck', color: '#3B5BDB', need: 'need' },
+  { name: 'Food & dining', kind: 'expense', bucket: 'personal', icon: 'UtensilsCrossed', color: '#F08C00', need: 'want' },
+  { name: 'Transport & fuel', kind: 'expense', bucket: 'personal', icon: 'Car', color: '#1C7ED6', need: 'need' },
+  { name: 'Shopping', kind: 'expense', bucket: 'personal', icon: 'ShoppingBag', color: '#D6336C', need: 'want' },
+  { name: 'Subscriptions', kind: 'expense', bucket: 'personal', icon: 'Repeat', color: '#7048E8', need: 'want' },
+  { name: 'Entertainment', kind: 'expense', bucket: 'personal', icon: 'Clapperboard', color: '#F76707', need: 'want' },
+  { name: 'Travel', kind: 'expense', bucket: 'personal', icon: 'Plane', color: '#0B7285', need: 'want' },
+  { name: 'Personal care', kind: 'expense', bucket: 'personal', icon: 'Sparkles', color: '#C2255C', need: 'want' },
+  { name: 'Gifts & donations', kind: 'expense', bucket: 'personal', icon: 'Gift', color: '#AE3EC9', need: 'want' },
+  { name: 'Misc', kind: 'expense', bucket: 'personal', icon: 'CircleDashed', color: '#868E96', need: 'want' },
+  { name: 'Salary', kind: 'income', bucket: 'personal', icon: 'Wallet', color: '#2F9E44', need: 'need' },
+  { name: 'Business / freelance', kind: 'income', bucket: 'personal', icon: 'Briefcase', color: '#37B24D', need: 'need' },
+  { name: 'Interest & dividend', kind: 'income', bucket: 'personal', icon: 'PiggyBank', color: '#66A80F', need: 'need' },
+  { name: 'Rental income', kind: 'income', bucket: 'home', icon: 'Building2', color: '#5C940D', need: 'need' },
+  { name: 'Other income', kind: 'income', bucket: 'personal', icon: 'Plus', color: '#099268', need: 'need' },
 ];

@@ -8,7 +8,7 @@ import { useReference } from '@/features/settings/ReferenceData';
 import { useAction } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { toISODate } from '@/lib/date';
-import { BUCKETS, TXN_TYPES } from '@/lib/constants';
+import { BUCKETS, NEED_COLORS, NEED_LEVELS, TXN_TYPES } from '@/lib/constants';
 import type { Transaction } from '../schema';
 
 export type TransactionDraft = Partial<Transaction>;
@@ -33,6 +33,7 @@ export function TransactionForm({
   const [form, setForm] = useState({
     type: (initial?.type ?? 'expense') as 'expense' | 'income' | 'transfer',
     bucket: (initial?.bucket ?? 'personal') as 'home' | 'personal',
+    need_level: (initial?.need_level ?? 'need') as 'need' | 'want' | 'waste',
     amount: initial?.amount ? String(initial.amount) : '',
     txn_date: initial?.txn_date?.slice(0, 10) ?? toISODate(),
     category_id: initial?.category_id ?? '',
@@ -45,6 +46,19 @@ export function TransactionForm({
 
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  const [levelTouched, setLevelTouched] = useState(false);
+
+  /** Picking a category suggests a level, until you pick one yourself. */
+  function chooseCategory(id: string) {
+    const category = categories.find((c) => c.id === id);
+    setForm((f) => ({
+      ...f,
+      category_id: id,
+      bucket: category?.bucket ?? f.bucket,
+      need_level: levelTouched ? f.need_level : (category?.default_need_level ?? f.need_level),
+    }));
+  }
 
   const isTransfer = form.type === 'transfer';
   const relevantCategories = useMemo(
@@ -92,6 +106,37 @@ export function TransactionForm({
           required
         />
       </Field>
+
+      {form.type === 'expense' ? (
+        <Field label="Was this worth it?">
+          <div className="grid grid-cols-3 gap-2">
+            {NEED_LEVELS.map((level) => {
+              const active = form.need_level === level.value;
+              return (
+                <button
+                  key={level.value}
+                  type="button"
+                  onClick={() => {
+                    setLevelTouched(true);
+                    set('need_level', level.value);
+                  }}
+                  className={`rounded-xl border px-2 py-2.5 text-center transition ${
+                    active
+                      ? 'border-transparent text-white'
+                      : 'border-line-strong bg-surface text-ink-soft hover:bg-surface-sunken'
+                  }`}
+                  style={active ? { background: NEED_COLORS[level.value] } : undefined}
+                >
+                  <span className="block text-[13px] font-medium">{level.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-[12px] text-ink-muted">
+            {NEED_LEVELS.find((l) => l.value === form.need_level)?.hint}
+          </p>
+        </Field>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date" error={fields.txn_date}>
@@ -143,8 +188,8 @@ export function TransactionForm({
       ) : (
         <div className="grid grid-cols-2 gap-3">
           <Field label="Category" error={fields.category_id}>
-            <Select value={form.category_id} onChange={(e) => set('category_id', e.target.value)}>
-              <option value="">Uncategorised</option>
+            <Select value={form.category_id} onChange={(e) => chooseCategory(e.target.value)}>
+              <option value="">Not sorted yet</option>
               {relevantCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}

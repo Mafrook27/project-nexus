@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS transactions (
   txn_date      date NOT NULL DEFAULT CURRENT_DATE,
   merchant      text,
   note          text,
+  -- Was this money well spent? need | want | waste
+  need_level    text NOT NULL DEFAULT 'need',
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS tx_user_date_idx ON transactions (user_id, txn_date DESC);
@@ -168,3 +170,14 @@ CREATE TABLE IF NOT EXISTS net_worth_snapshots (
   created_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (user_id, month)
 );
+
+
+-- ---------------------------------------------------------------------------
+-- Migrations for databases created by an earlier version of this file.
+-- These run after the CREATE TABLE block, so a column an index depends on
+-- always exists by the time the index is created. Each one is safe to re-run.
+-- ---------------------------------------------------------------------------
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS need_level text NOT NULL DEFAULT 'need';
+ALTER TABLE categories   ADD COLUMN IF NOT EXISTS default_need_level text NOT NULL DEFAULT 'need';
+
+CREATE INDEX IF NOT EXISTS tx_user_need_idx ON transactions (user_id, need_level);

@@ -45,14 +45,14 @@ export function FireProjection({
         <XAxis
           dataKey="age"
           tickFormatter={(a: number) => `${a}`}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={{ stroke: CHART.axis }}
           minTickGap={16}
         />
         <YAxis
           tickFormatter={(v: number) => compactMoney(v, currency)}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={false}
           width={58}

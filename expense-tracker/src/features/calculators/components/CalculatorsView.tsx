@@ -29,9 +29,7 @@ export function CalculatorsView() {
     <div className="space-y-5">
       <header>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Calculators</h1>
-        <p className="mt-0.5 text-[13px] text-ink-muted">
-          Quick answers before you commit money to something.
-        </p>
+
       </header>
 
       <Segmented
@@ -71,13 +69,13 @@ function SipCalculator({ currency }: { currency: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatTile label="You invest" value={formatMoney(invested, currency)} />
-        <StatTile label="It becomes" value={formatMoney(value, currency)} accent={SERIES[0]} />
+        <StatTile label="You put in" value={formatMoney(invested, currency)} />
+        <StatTile label="It grows to" value={formatMoney(value, currency)} accent={SERIES[0]} />
         <StatTile
-          label="Returns earned"
+          label="Free money"
           value={formatMoney(value - invested, currency)}
           delta={invested > 0 ? ((value - invested) / invested) * 100 : null}
-          sub="over the whole period"
+          sub="from growth alone"
           accent={SERIES[2]}
         />
       </div>
@@ -135,7 +133,6 @@ function SipCalculator({ currency }: { currency: string }) {
 
         <ChartFrame
           title="How it grows"
-          subtitle="Your money versus what compounding adds"
           legend={GROWTH_LEGEND}
           className="lg:col-span-2"
           height="h-[320px]"
@@ -184,10 +181,10 @@ function LumpsumCalculator({ currency }: { currency: string }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatTile label="You invest" value={formatMoney(amount, currency)} />
-        <StatTile label="It becomes" value={formatMoney(value, currency)} accent={SERIES[0]} />
+        <StatTile label="You put in" value={formatMoney(amount, currency)} />
+        <StatTile label="It grows to" value={formatMoney(value, currency)} accent={SERIES[0]} />
         <StatTile
-          label="Returns earned"
+          label="Free money"
           value={formatMoney(value - amount, currency)}
           delta={((value - amount) / amount) * 100}
           accent={SERIES[2]}
@@ -257,7 +254,7 @@ function EmiCalculator({ currency }: { currency: string }) {
           sub={`${((schedule.totalInterest / principal) * 100).toFixed(0)}% of what you borrowed`}
           accent={SERIES[1]}
         />
-        <StatTile label="Total repaid" value={formatMoney(schedule.totalPaid, currency)} />
+        <StatTile label="You repay" value={formatMoney(schedule.totalPaid, currency)} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -305,7 +302,7 @@ function EmiCalculator({ currency }: { currency: string }) {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader title="Year by year" subtitle="How the balance comes down" />
+          <CardHeader title="Year by year" />
           <TableWrap>
             <thead>
               <tr>

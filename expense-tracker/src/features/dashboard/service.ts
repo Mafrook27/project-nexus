@@ -5,7 +5,7 @@ import { cashTotals } from '@/features/accounts/service';
 import { portfolioSummary } from '@/features/investments/service';
 import { computeFire, fireMilestones, type FireResult } from '@/features/fire/calc';
 import { DEFAULT_FIRE_SETTINGS, type FireSettings } from '@/features/settings/schema';
-import { runwayMonths } from '@/features/calculators/math';
+import { runwayMonths, sipFutureValue } from '@/features/calculators/math';
 
 export type DashboardData = Awaited<ReturnType<typeof getDashboard>>;
 
@@ -27,6 +27,9 @@ export async function getDashboard(userId: string, month = monthKey()) {
     upcoming,
     goals,
     budgetRows,
+    needSplit,
+    wasteCategories,
+    needTrend,
     topMerchants,
     recentTx,
   ] = await Promise.all([
@@ -91,6 +94,34 @@ export async function getDashboard(userId: string, month = monthKey()) {
        ORDER BY spent DESC`,
       [userId, start, end, month],
     ),
+    query<{ need_level: string; amount: number }>(
+      `SELECT need_level, COALESCE(SUM(amount), 0) AS amount
+       FROM transactions
+       WHERE user_id = $1 AND type = 'expense' AND txn_date BETWEEN $2 AND $3
+       GROUP BY need_level`,
+      [userId, start, end],
+    ),
+    query<{ name: string; color: string; amount: number; n: number }>(
+      `SELECT COALESCE(c.name, 'Uncategorised') AS name,
+              COALESCE(c.color, '#94A3B8')      AS color,
+              SUM(t.amount) AS amount, COUNT(*)::int AS n
+       FROM transactions t
+       LEFT JOIN categories c ON c.id = t.category_id
+       WHERE t.user_id = $1 AND t.type = 'expense' AND t.need_level = 'waste'
+         AND t.txn_date BETWEEN $2 AND $3
+       GROUP BY 1, 2 ORDER BY amount DESC LIMIT 5`,
+      [userId, start, end],
+    ),
+    query<{ month: string; waste: number; want: number; need: number }>(
+      `SELECT to_char(txn_date, 'YYYY-MM') AS month,
+              COALESCE(SUM(CASE WHEN need_level = 'waste' THEN amount ELSE 0 END), 0) AS waste,
+              COALESCE(SUM(CASE WHEN need_level = 'want'  THEN amount ELSE 0 END), 0) AS want,
+              COALESCE(SUM(CASE WHEN need_level = 'need'  THEN amount ELSE 0 END), 0) AS need
+       FROM transactions
+       WHERE user_id = $1 AND type = 'expense' AND txn_date >= $2 AND txn_date <= $3
+       GROUP BY 1 ORDER BY 1`,
+      [userId, monthRange(trendMonths[0]).start, end],
+    ),
     query<{ merchant: string; amount: number; n: number }>(
       `SELECT COALESCE(NULLIF(t.merchant, ''), 'Uncategorised') AS merchant,
               SUM(t.amount) AS amount, COUNT(*)::int AS n
@@ -100,7 +131,7 @@ export async function getDashboard(userId: string, month = monthKey()) {
       [userId, start, end],
     ),
     query(
-      `SELECT t.id, t.amount, t.type, t.bucket, t.txn_date, t.merchant, t.note,
+      `SELECT t.id, t.amount, t.type, t.bucket, t.need_level, t.txn_date, t.merchant, t.note,
               c.name AS category_name, c.color AS category_color, c.icon AS category_icon,
               a.name AS account_name
        FROM transactions t
@@ -158,6 +189,19 @@ export async function getDashboard(userId: string, month = monthKey()) {
   const income = monthTotals.income;
   const expense = monthTotals.expense;
 
+  // Cash flow, in the order a salaried person experiences it.
+  const amountFor = (level: string) =>
+    Number(needSplit.find((r) => r.need_level === level)?.amount ?? 0);
+  const wasted = amountFor('waste');
+  const wants = amountFor('want');
+  const needs = amountFor('need');
+
+  // What that wasted money would be worth if it were invested instead.
+  const wasteIfInvested = {
+    fiveYears: sipFutureValue(wasted, settings.pre_retirement_return, 5),
+    tenYears: sipFutureValue(wasted, settings.pre_retirement_return, 10),
+  };
+
   return {
     month,
     currency: user?.currency ?? 'INR',
@@ -174,6 +218,29 @@ export async function getDashboard(userId: string, month = monthKey()) {
       prevIncome: prevTotals.income,
       prevExpense: prevTotals.expense,
       avgMonthlyExpense,
+    },
+    cashflow: {
+      salary: income,
+      spent: expense,
+      movedToSavings: monthTotals.invested,
+      leftOver: income - expense - monthTotals.invested,
+    },
+    spendQuality: {
+      needs,
+      wants,
+      wasted,
+      wastedPct: expense > 0 ? (wasted / expense) * 100 : 0,
+      categories: wasteCategories,
+      ifInvested: wasteIfInvested,
+      trend: trendMonths.map((m) => {
+        const row = needTrend.find((t) => t.month === m);
+        return {
+          month: m,
+          need: row?.need ?? 0,
+          want: row?.want ?? 0,
+          waste: row?.waste ?? 0,
+        };
+      }),
     },
     netWorth: {
       total: netWorth,

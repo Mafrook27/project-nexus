@@ -33,7 +33,7 @@ export function TooltipRow({
         ) : null}
         {label}
       </span>
-      <span className="tnum font-medium text-ink">{value}</span>
+      <span className="num-mono font-medium text-ink">{value}</span>
     </div>
   );
 }

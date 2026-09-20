@@ -35,6 +35,7 @@ function buildWhere(userId: string, f: TransactionFilter) {
   if (f.to) where.push(`t.txn_date <= ${p(f.to)}`);
   if (f.type) where.push(`t.type = ${p(f.type)}`);
   if (f.bucket) where.push(`t.bucket = ${p(f.bucket)}`);
+  if (f.need_level) where.push(`t.need_level = ${p(f.need_level)}`);
   if (f.category_id) where.push(`t.category_id = ${p(f.category_id)}`);
   if (f.person_id) where.push(`t.person_id = ${p(f.person_id)}`);
   if (f.account_id) {

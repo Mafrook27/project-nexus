@@ -33,9 +33,7 @@ export function SettingsView() {
     <div className="space-y-5">
       <header>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Settings</h1>
-        <p className="mt-0.5 text-[13px] text-ink-muted">
-          Your profile, the people you track money for, and your categories.
-        </p>
+
       </header>
 
       <ProfileCard />
@@ -43,7 +41,7 @@ export function SettingsView() {
       <CategoriesCard />
 
       <Card>
-        <CardHeader title="Your data" subtitle="It lives in your own database, and it leaves in CSV" />
+        <CardHeader title="Your data" subtitle="It is yours, and it leaves as a spreadsheet" />
         <div className="flex flex-wrap gap-2">
           <a href="/api/export?type=transactions" download>
             <Button variant="secondary" size="sm">
@@ -161,7 +159,7 @@ function PeopleCard() {
     <Card>
       <CardHeader
         title="People"
-        subtitle="Tag accounts, investments and spending by whose money it is"
+        subtitle="So you can tag whose money it is"
         action={<Users className="size-4.5 text-ink-muted" />}
       />
       {data?.length ? (
@@ -254,7 +252,7 @@ function CategoriesCard() {
     <Card>
       <CardHeader
         title="Categories"
-        subtitle="Split into home and personal so the dashboard can tell them apart"
+        subtitle="Home or personal, so spending adds up correctly"
         action={
           <Segmented
             value={kind}

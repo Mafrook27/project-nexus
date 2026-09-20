@@ -8,7 +8,7 @@ One Next.js app. The UI and the API live in the same codebase and deploy
 together, so there is no separate backend to keep in sync.
 
 ```
-Light theme only · installable as a PWA · works on a phone and a desktop
+IBM Plex · light theme only · installable as a PWA · built for a phone first
 ```
 
 ---
@@ -17,8 +17,9 @@ Light theme only · installable as a PWA · works on a phone and a desktop
 
 | Area | What you get |
 |---|---|
-| **Dashboard** | Net worth, this month's spending against last month, savings rate, where the money went, FIRE progress, emergency-fund cover, budgets, bills due, recent activity |
-| **Transactions** | Expense / income / transfer, tagged **home** or **personal**, by category, account and person. Filter by any of them, search, edit inline, export |
+| **Dashboard** | Cash flow first: what came in, what you spent, what you saved, what is left. Then the money you wasted, where the rest went, budgets, bills due, net worth and freedom progress |
+| **Money in & out** | Expense / income / transfer, tagged **home** or **personal**, by category, account and person. Filter by any of them, search, edit inline, export |
+| **Was it worth it?** | Every spend is marked **must have**, **nice to have** or **wasted**. The dashboard then shows what you wasted this month, which categories leak the most, and what that money would become if you invested it instead |
 | **CSV import** | Drop in a bank statement. Columns are auto-detected, Indian date formats are understood, and unknown categories are created for you |
 | **Accounts** | Bank, cash, UPI wallet and credit card. Balances are computed from transactions, never typed in. Mark one account as your emergency fund |
 | **Investments** | Mutual funds, stocks, FDs, RDs, PPF, EPF, NPS, gold, bonds, crypto, property — each owned by **you, your mother or your father**, with gains per person |
@@ -144,9 +145,15 @@ exists, and how a new feature gets added in about fifteen minutes.
 
 ## The design decisions worth knowing
 
-**One light theme.** A money app gets read in daylight, on a phone, often in a
-shop. One theme means one set of contrast values to get right, and nothing
-looks different from how you remember it.
+**One light theme, IBM Plex.** A money app gets read in daylight, on a phone,
+often in a shop. One theme means one set of contrast values to get right. IBM
+Plex Sans carries the words and IBM Plex Mono carries the numbers, so columns
+of rupees line up exactly and a 7 never reads as a 1.
+
+**Plain words, not finance words.** The app says "must have" instead of
+"non-discretionary", "money you wasted" instead of "lifestyle inflation", and
+"enough to pay you ₹52,700 a month without a job" instead of "corpus". Anyone
+should be able to read a screen without a glossary.
 
 **Balances are never stored.** An account balance is its opening balance plus
 every transaction that has touched it. Edit a transaction from four months ago

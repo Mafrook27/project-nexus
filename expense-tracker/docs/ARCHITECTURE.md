@@ -117,6 +117,11 @@ about today; you cannot reconstruct what a mutual fund was worth last March. So
 every dashboard load upserts one row into `net_worth_snapshots` for the current
 month. The history builds itself as you use the app.
 
+**`need_level` is on the transaction, not just the category.** A category
+suggests a default (`categories.default_need_level`), but the same ₹400 at a
+restaurant can be a planned dinner or a regretted one. The judgement belongs to
+the individual spend, which is what makes the leaks card honest.
+
 **`bucket` is on the transaction, not the category.** A category has a default
 bucket, but groceries bought for the house and groceries bought for yourself are
 genuinely different, and the split only works if you can override it per entry.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Download, Filter, Pencil, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +15,7 @@ import { useResource, useAction } from '@/hooks/useResource';
 import { api, withQuery } from '@/lib/api';
 import { formatMoney } from '@/lib/money';
 import { formatDate, monthKey } from '@/lib/date';
+import { NEED_LEVELS } from '@/lib/constants';
 import { useReference } from '@/features/settings/ReferenceData';
 import { TransactionForm } from './TransactionForm';
 import { ImportDialog } from '@/features/import/components/ImportDialog';
@@ -24,6 +26,7 @@ type ListResponse = { rows: Transaction[]; count: number; income: number; expens
 const BLANK_FILTERS = {
   type: '',
   bucket: '',
+  need_level: '',
   category_id: '',
   account_id: '',
   person_id: '',
@@ -31,13 +34,21 @@ const BLANK_FILTERS = {
 };
 
 export function TransactionsView() {
+  const params = useSearchParams();
   const { categories, accounts, people, currency, refresh } = useReference();
   const { toast } = useToast();
   const { run } = useAction();
 
   const [month, setMonth] = useState(monthKey());
-  const [filters, setFilters] = useState(BLANK_FILTERS);
-  const [showFilters, setShowFilters] = useState(false);
+  // Cards elsewhere link straight here, e.g. /transactions?need=waste
+  const [filters, setFilters] = useState({
+    ...BLANK_FILTERS,
+    need_level: params.get('need') ?? '',
+    category_id: params.get('category') ?? '',
+  });
+  const [showFilters, setShowFilters] = useState(
+    Boolean(params.get('need') || params.get('category')),
+  );
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -69,11 +80,20 @@ export function TransactionsView() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Transactions</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            {data ? `${data.count} entries` : 'Loading…'}
-            {data ? ` · ${formatMoney(data.expense, currency)} spent · ${formatMoney(data.income, currency)} in` : ''}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Money in &amp; out</h1>
+          {data ? (
+            <p className="mt-1 text-[13.5px] text-ink-soft">
+              <span className="font-semibold text-good-ink">
+                {formatMoney(data.income, currency)} in
+              </span>
+              {' · '}
+              <span className="font-semibold text-ink">
+                {formatMoney(data.expense, currency)} out
+              </span>
+              {' · '}
+              {data.count} entries
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <MonthPicker value={month} onChange={setMonth} />
@@ -123,6 +143,19 @@ export function TransactionsView() {
                 <option value="expense">Expense</option>
                 <option value="income">Income</option>
                 <option value="transfer">Transfer</option>
+              </Select>
+            </Field>
+            <Field label="Worth it?">
+              <Select
+                value={filters.need_level}
+                onChange={(e) => setFilters((f) => ({ ...f, need_level: e.target.value }))}
+              >
+                <option value="">All spending</option>
+                {NEED_LEVELS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
               </Select>
             </Field>
             <Field label="Home or personal">
@@ -207,11 +240,16 @@ export function TransactionsView() {
                       {t.person_name ? ` · ${t.person_name}` : ''}
                     </p>
                   </div>
-                  <Badge tone={t.type === 'income' ? 'good' : t.type === 'transfer' ? 'brand' : 'neutral'}>
+                  {t.type === 'expense' && t.need_level === 'waste' ? (
+                    <Badge tone="bad">Wasted</Badge>
+                  ) : t.type === 'expense' && t.need_level === 'want' ? (
+                    <Badge tone="warn">Nice to have</Badge>
+                  ) : null}
+                  <Badge tone={t.type === 'income' ? 'good' : 'neutral'}>
                     {t.bucket === 'home' ? 'Home' : 'Personal'}
                   </Badge>
                   <span
-                    className={`tnum shrink-0 text-[14px] font-semibold ${
+                    className={`num-mono shrink-0 text-[14px] font-semibold ${
                       t.type === 'income' ? 'text-good-ink' : 'text-ink'
                     }`}
                   >

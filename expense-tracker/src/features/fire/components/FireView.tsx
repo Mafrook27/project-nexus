@@ -89,9 +89,9 @@ export function FireView() {
           <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
             <Flame className="size-5 text-brand" /> Financial independence
           </h1>
-          <p className="mt-0.5 max-w-2xl text-[13px] text-ink-muted">
-            The corpus that can pay for your life without a salary. Drag the assumptions and watch
-            the date move.
+          <p className="mt-0.5 max-w-2xl text-[13.5px] text-ink-soft">
+            The amount that pays for your life without a job. Move the sliders and watch the date
+            change.
           </p>
         </div>
         {dirty ? (
@@ -103,15 +103,15 @@ export function FireView() {
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatTile
-          label="Your FIRE number"
+          label="You need"
           value={formatMoney(result.fiNumberToday, currency)}
-          sub={`In today's money at a ${settings.withdrawal_rate}% withdrawal rate`}
+          sub={`In today's money`}
           accent={SERIES[0]}
         />
         <StatTile
-          label="Corpus today"
+          label="You have"
           value={formatMoney(result.currentCorpus, currency)}
-          sub="Liquid investments plus emergency cash"
+          sub="Investments plus emergency cash"
         />
         <StatTile
           label="Progress"
@@ -124,7 +124,7 @@ export function FireView() {
           accent={SERIES[2]}
         />
         <StatTile
-          label="Freedom age"
+          label="You get there at"
           value={result.fiAge ? String(Math.round(result.fiAge)) : '—'}
           sub={
             result.monthsToFi === null
@@ -150,8 +150,8 @@ export function FireView() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <ChartFrame
-          title="Your path to independence"
-          subtitle="Inflation-adjusted, so the target line stays flat in today's rupees"
+          title="Your path"
+          subtitle="Adjusted for price rises, so the target stays flat"
           legend={FIRE_LEGEND}
           className="lg:col-span-2"
           height="h-[300px]"
@@ -186,7 +186,7 @@ export function FireView() {
         </ChartFrame>
 
         <Card>
-          <CardHeader title="Milestones" subtitle="Each one is a real change in your options" />
+          <CardHeader title="Milestones" />
           <ul className="space-y-4">
             {milestones.map((m) => (
               <li key={m.label}>
@@ -207,8 +207,7 @@ export function FireView() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
-            title="Your assumptions"
-            subtitle="These drive every number on this page"
+            title="About you"
           />
           <div className="space-y-5">
             <Slider
@@ -263,7 +262,7 @@ export function FireView() {
         </Card>
 
         <Card>
-          <CardHeader title="Market assumptions" subtitle="Conservative beats optimistic here" />
+          <CardHeader title="About the market" subtitle="Guess low rather than high" />
           <div className="space-y-5">
             <Slider
               label="Return before retirement"
@@ -331,8 +330,7 @@ export function FireView() {
 
       <Card>
         <CardHeader
-          title="What moves the date"
-          subtitle="Same corpus, one lever changed at a time"
+          title="What would move the date"
         />
         <TableWrap>
           <thead>

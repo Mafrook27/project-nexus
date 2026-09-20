@@ -44,7 +44,7 @@ export function ShareBar({
               />
               <span className="truncate">{p.label}</span>
             </span>
-            <span className={cn('tnum shrink-0 font-medium text-ink')}>
+            <span className={cn('num-mono shrink-0 font-medium text-ink')}>
               {formatMoney(p.value, currency)}
               <span className="ml-1.5 text-[11.5px] font-normal text-ink-muted">
                 {total > 0 ? `${((p.value / total) * 100).toFixed(0)}%` : '0%'}

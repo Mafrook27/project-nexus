@@ -69,15 +69,15 @@ export function SipSection({ currency }: { currency: string }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatTile
-          label="Monthly SIP"
+          label="Every month"
           value={formatMoney(monthly, currency)}
           sub={`${active.length} active`}
           icon={<Repeat className="size-4" />}
         />
         <StatTile
-          label="Blended return"
+          label="Average return"
           value={`${blendedReturn.toFixed(1)}%`}
-          sub="Weighted by amount"
+          sub="Across your SIPs"
         />
         <StatTile
           label="In 20 years"
@@ -91,7 +91,7 @@ export function SipSection({ currency }: { currency: string }) {
 
       {monthly > 0 ? (
         <ChartFrame
-          title="Where these SIPs land"
+          title="Where these end up"
           subtitle={`${formatMoney(monthly, currency)} a month at ${blendedReturn.toFixed(1)}%${avgStepUp > 0 ? `, stepped up ${avgStepUp.toFixed(0)}% a year` : ''}`}
           legend={GROWTH_LEGEND}
           height="h-[260px]"
@@ -103,7 +103,6 @@ export function SipSection({ currency }: { currency: string }) {
       <Card>
         <CardHeader
           title="Your SIPs"
-          subtitle="Recurring investments across the family"
           action={
             <Button size="sm" onClick={() => setAdding(true)}>
               <Plus className="size-4" /> Add SIP
@@ -126,7 +125,7 @@ export function SipSection({ currency }: { currency: string }) {
                   </p>
                 </div>
                 {!s.active ? <Badge>Paused</Badge> : null}
-                <span className="tnum shrink-0 text-[14px] font-semibold">
+                <span className="num-mono shrink-0 text-[14px] font-semibold">
                   {formatMoney(Number(s.amount), currency)}
                 </span>
                 <div className="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
@@ -159,7 +158,7 @@ export function SipSection({ currency }: { currency: string }) {
           <EmptyState
             icon={<Repeat className="size-5" />}
             title="No SIPs yet"
-            description="Add your monthly mutual fund instalments to see where they land in 10 or 20 years."
+            description="Add your monthly instalments to see what they become in 10 or 20 years."
             action={
               <Button size="sm" onClick={() => setAdding(true)}>
                 <Plus className="size-4" /> Add SIP

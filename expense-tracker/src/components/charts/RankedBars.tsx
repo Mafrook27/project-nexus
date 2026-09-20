@@ -40,7 +40,7 @@ export function RankedBars({
             >
               <div className="mb-1 flex items-baseline justify-between gap-3">
                 <span className="truncate text-[13px] font-medium text-ink">{row.name}</span>
-                <span className="tnum shrink-0 text-[13px] text-ink-soft">
+                <span className="num-mono shrink-0 text-[13px] text-ink-soft">
                   {formatMoney(row.value, currency)}
                   <span className="ml-1.5 text-[11.5px] text-ink-muted">{share.toFixed(0)}%</span>
                 </span>

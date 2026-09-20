@@ -53,14 +53,14 @@ export function AreaTrend({
         <XAxis
           dataKey={xKey}
           tickFormatter={fx}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={{ stroke: CHART.axis }}
           minTickGap={14}
         />
         <YAxis
           tickFormatter={formatValue}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={false}
           width={isPercent ? 44 : 58}

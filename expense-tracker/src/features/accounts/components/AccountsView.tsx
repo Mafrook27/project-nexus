@@ -57,9 +57,6 @@ export function AccountsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Accounts</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            Bank, cash, UPI wallets and cards — balances update from your transactions.
-          </p>
         </div>
         <Button size="sm" onClick={() => setAdding(true)}>
           <Plus className="size-4" /> Add account
@@ -67,17 +64,17 @@ export function AccountsView() {
       </header>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
-        <StatTile label="Cash & bank" value={formatMoney(cash, currency)} icon={<Landmark className="size-4" />} />
+        <StatTile label="In the bank" value={formatMoney(cash, currency)} icon={<Landmark className="size-4" />} />
         <StatTile
           label="Emergency fund"
           value={formatMoney(emergency, currency)}
-          sub={emergency ? 'Marked accounts' : 'Mark an account below'}
+          sub={emergency ? 'Set aside' : 'Tick an account below'}
           icon={<ShieldCheck className="size-4" />}
         />
         <StatTile
           label="Card dues"
           value={formatMoney(dues, currency)}
-          sub="Outstanding on credit cards"
+          sub="Still to pay"
           icon={<CreditCard className="size-4" />}
         />
       </div>
@@ -120,7 +117,7 @@ export function AccountsView() {
                     {a.institution ? ` · ${a.institution}` : ''}
                     {a.person_name ? ` · ${a.person_name}` : ''}
                   </p>
-                  <p className="tnum mt-3 text-[22px] font-semibold text-ink">
+                  <p className="num-mono mt-3 text-[22px] font-semibold text-ink">
                     {formatMoney(isCard ? Math.abs(Number(a.balance)) : Number(a.balance), currency)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
@@ -137,7 +134,7 @@ export function AccountsView() {
             <EmptyState
               icon={<Landmark className="size-5" />}
               title="No accounts yet"
-              description="Add your salary account, a cash wallet and any credit cards to see real balances."
+              description="Add your salary account and any cards. Balances then update by themselves."
               action={
                 <Button size="sm" onClick={() => setAdding(true)}>
                   <Plus className="size-4" /> Add account
@@ -279,7 +276,7 @@ function AccountModal({
           </Field>
           <Field
             label="Opening balance"
-            hint="Balance before you started tracking"
+            hint="What is in it today"
             error={fields.opening_balance}
           >
             <MoneyInput
@@ -302,7 +299,7 @@ function AccountModal({
               This is my emergency fund
             </span>
             <span className="block text-[12.5px] text-ink-muted">
-              Counted against your months-of-expenses target on the dashboard.
+              Money you keep for emergencies only.
             </span>
           </span>
         </label>

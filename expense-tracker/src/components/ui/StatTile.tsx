@@ -49,12 +49,12 @@ export function StatTile({
           </span>
         ) : null}
       </div>
-      <p className="tnum mt-2 text-[21px] leading-tight font-semibold text-ink sm:text-[26px]">{value}</p>
+      <p className="num-mono mt-2 text-[21px] leading-tight font-semibold text-ink sm:text-[26px]">{value}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         {hasDelta ? (
           <span
             className={cn(
-              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium tnum',
+              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-medium num-mono',
               good ? 'bg-good-soft text-good-ink' : 'bg-bad-soft text-bad',
             )}
           >

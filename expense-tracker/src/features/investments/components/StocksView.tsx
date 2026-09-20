@@ -70,7 +70,7 @@ export function StocksView() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Stocks</h1>
           <p className="mt-0.5 text-[13px] text-ink-muted">
-            Drop in your broker&apos;s holdings CSV and it charts itself.
+            Upload the holdings file from your broker and it draws itself.
           </p>
         </div>
         <Button size="sm" onClick={() => setImporting(true)}>
@@ -86,10 +86,10 @@ export function StocksView() {
           accent={SERIES[0]}
         />
         <StatTile
-          label="Unrealised P&L"
+          label="Profit on paper"
           value={formatMoney(pnl, currency)}
           delta={invested > 0 ? (pnl / invested) * 100 : null}
-          sub="across all holdings"
+          sub="if you sold today"
           accent={pnl >= 0 ? SERIES[2] : SERIES[1]}
         />
         <StatTile
@@ -118,15 +118,14 @@ export function StocksView() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <ChartFrame
-              title="Allocation"
-              subtitle="Share of the equity book by current value"
+              title="How it is split"
               height="h-auto"
             >
               <RankedBars rows={allocation} currency={currency} />
             </ChartFrame>
 
             <Card>
-              <CardHeader title="Best and worst" subtitle="By percentage return" />
+              <CardHeader title="Best and worst" />
               <div className="space-y-4">
                 <div>
                   <p className="mb-2 text-[12.5px] font-medium tracking-wide text-ink-muted uppercase">
@@ -136,7 +135,7 @@ export function StocksView() {
                     {gainers.map((h) => (
                       <li key={h.id} className="flex items-center justify-between gap-3 text-[13px]">
                         <span className="truncate font-medium">{h.symbol ?? h.name}</span>
-                        <span className="tnum shrink-0 font-medium text-good-ink">
+                        <span className="num-mono shrink-0 font-medium text-good-ink">
                           +{formatPercent(h.gainPct)}
                         </span>
                       </li>
@@ -156,7 +155,7 @@ export function StocksView() {
                         >
                           <span className="truncate font-medium">{h.symbol ?? h.name}</span>
                           <span
-                            className={`tnum shrink-0 font-medium ${h.gainPct >= 0 ? 'text-good-ink' : 'text-bad'}`}
+                            className={`num-mono shrink-0 font-medium ${h.gainPct >= 0 ? 'text-good-ink' : 'text-bad'}`}
                           >
                             {h.gainPct >= 0 ? '+' : ''}
                             {formatPercent(h.gainPct)}
@@ -171,7 +170,7 @@ export function StocksView() {
           </div>
 
           <Card>
-            <CardHeader title="Holdings" subtitle={`${holdings.length} stocks`} />
+            <CardHeader title="Your stocks" subtitle={`${holdings.length} in total`} />
             <TableWrap>
               <thead>
                 <tr>

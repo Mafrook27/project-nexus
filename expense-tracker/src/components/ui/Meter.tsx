@@ -38,7 +38,7 @@ export function Meter({
       {(label || right) && (
         <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[13px]">
           <span className="truncate font-medium text-ink">{label}</span>
-          <span className="tnum shrink-0 text-ink-soft">{right}</span>
+          <span className="num-mono shrink-0 text-ink-soft">{right}</span>
         </div>
       )}
       <div

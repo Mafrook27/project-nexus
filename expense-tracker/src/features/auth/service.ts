@@ -54,11 +54,11 @@ export async function seedNewUser(
   const values: unknown[] = [userId];
   const tuples = DEFAULT_CATEGORIES.map((c) => {
     const base = values.length;
-    values.push(c.name, c.kind, c.bucket, c.icon, c.color);
-    return `($1, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+    values.push(c.name, c.kind, c.bucket, c.icon, c.color, c.need);
+    return `($1, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
   });
   await q(
-    `INSERT INTO categories (user_id, name, kind, bucket, icon, color)
+    `INSERT INTO categories (user_id, name, kind, bucket, icon, color, default_need_level)
      VALUES ${tuples.join(', ')}
      ON CONFLICT (user_id, name, kind) DO NOTHING`,
     values,

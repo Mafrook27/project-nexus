@@ -47,7 +47,7 @@ export function Td({
     <td
       className={cn(
         'border-b border-line py-2.5 text-ink',
-        align === 'right' && 'text-right tnum',
+        align === 'right' && 'text-right num-mono',
         align === 'center' && 'text-center',
         className,
       )}

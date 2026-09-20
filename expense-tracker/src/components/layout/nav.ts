@@ -29,15 +29,15 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: 'Spending',
+    title: 'Every month',
     items: [
-      { href: '/transactions', label: 'Transactions', icon: Receipt, short: 'Spends' },
+      { href: '/transactions', label: 'Money in & out', icon: Receipt, short: 'Money' },
       { href: '/budgets', label: 'Budgets', icon: Target },
-      { href: '/bills', label: 'Bills & EMIs', icon: CalendarClock, short: 'Bills' },
+      { href: '/bills', label: 'Bills & loans', icon: CalendarClock, short: 'Bills' },
     ],
   },
   {
-    title: 'Money',
+    title: 'What you own',
     items: [
       { href: '/accounts', label: 'Accounts', icon: Landmark },
       { href: '/investments', label: 'Investments', icon: TrendingUp, short: 'Invest' },
@@ -45,9 +45,9 @@ export const NAV_GROUPS: { title: string; items: NavItem[] }[] = [
     ],
   },
   {
-    title: 'Future',
+    title: 'Long term',
     items: [
-      { href: '/fire', label: 'FIRE', icon: Flame },
+      { href: '/fire', label: 'Financial freedom', icon: Flame, short: 'Freedom' },
       { href: '/goals', label: 'Goals', icon: Flag },
       { href: '/calculators', label: 'Calculators', icon: Calculator, short: 'Calc' },
     ],

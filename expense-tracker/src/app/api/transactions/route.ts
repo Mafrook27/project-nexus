@@ -17,13 +17,14 @@ export const POST = route(async (req: Request) => {
   const d = transactionSchema.parse(await readJson(req));
   const row = await one(
     `INSERT INTO transactions
-       (user_id, type, bucket, amount, txn_date, account_id, to_account_id,
+       (user_id, type, bucket, need_level, amount, txn_date, account_id, to_account_id,
         category_id, person_id, merchant, note)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
     [
       user.id,
       d.type,
       d.bucket,
+      d.need_level,
       d.amount,
       d.txn_date,
       d.account_id ?? null,

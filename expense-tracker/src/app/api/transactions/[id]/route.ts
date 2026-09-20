@@ -8,6 +8,7 @@ export const { GET, PATCH, DELETE } = itemRoutes({
   columns: [
     'type',
     'bucket',
+    'need_level',
     'amount',
     'txn_date',
     'account_id',

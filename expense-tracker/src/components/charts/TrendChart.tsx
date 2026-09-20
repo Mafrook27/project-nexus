@@ -33,14 +33,14 @@ export function TrendChart({ data, currency }: { data: TrendPoint[]; currency: s
         <XAxis
           dataKey="month"
           tickFormatter={(m: string) => monthLabel(m)}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={{ stroke: CHART.axis }}
           minTickGap={14}
         />
         <YAxis
           tickFormatter={(v: number) => compactMoney(v, currency)}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={false}
           width={58}

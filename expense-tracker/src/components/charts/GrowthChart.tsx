@@ -27,14 +27,14 @@ export function GrowthChart({ data, currency }: { data: GrowthPoint[]; currency:
         <XAxis
           dataKey="year"
           tickFormatter={(y: number) => `${y}y`}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={{ stroke: CHART.axis }}
           minTickGap={12}
         />
         <YAxis
           tickFormatter={(v: number) => compactMoney(v, currency)}
-          tick={{ fill: CHART.inkMuted, fontSize: 11 }}
+          tick={{ fill: CHART.inkMuted, fontSize: 11, fontFamily: 'var(--font-plex-mono)' }}
           tickLine={false}
           axisLine={false}
           width={58}

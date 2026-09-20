@@ -82,7 +82,7 @@ export function MoneyInput({
       <input
         {...props}
         inputMode="decimal"
-        className={cn(base, 'h-10 pl-7 tnum', className)}
+        className={cn(base, 'h-10 pl-7 num-mono', className)}
       />
     </div>
   );

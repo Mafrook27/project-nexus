@@ -94,10 +94,7 @@ export function InvestmentsView() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Investments</h1>
-          <p className="mt-0.5 text-[13px] text-ink-muted">
-            Everything the family owns, in one place — yours, your mother&apos;s and your
-            father&apos;s.
-          </p>
+
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/stocks">
@@ -125,16 +122,16 @@ export function InvestmentsView() {
           accent={SERIES[0]}
         />
         <StatTile
-          label="Total gain"
+          label="Profit"
           value={formatMoney(gain, currency)}
           delta={invested > 0 ? (gain / invested) * 100 : null}
           sub="since you started"
           accent={gain >= 0 ? SERIES[2] : SERIES[1]}
         />
         <StatTile
-          label="FIRE corpus"
+          label="Usable now"
           value={formatMoney(liquid, currency)}
-          sub="Liquid holdings only"
+          sub="Not locked away"
           accent={SERIES[6]}
         />
       </div>
@@ -164,14 +161,13 @@ export function InvestmentsView() {
             <>
               <div className="grid gap-4 lg:grid-cols-2">
                 <ChartFrame
-                  title="Allocation by asset type"
-                  subtitle="Current value"
+                  title="What you own"
                   height="h-auto"
                 >
                   <RankedBars rows={byType} currency={currency} />
                 </ChartFrame>
                 <Card>
-                  <CardHeader title="Split by owner" subtitle="Across the whole family" />
+                  <CardHeader title="Whose money" />
                   <ShareBar parts={byPerson} currency={currency} />
                   <TableWrap className="mt-5 border-t border-line pt-4">
                     <thead>
@@ -214,7 +210,7 @@ export function InvestmentsView() {
               </div>
 
               <Card>
-                <CardHeader title="Holdings" subtitle={`${rows.length} entries`} />
+                <CardHeader title="Everything you hold" subtitle={`${rows.length} entries`} />
                 <TableWrap>
                   <thead>
                     <tr>
@@ -298,7 +294,7 @@ export function InvestmentsView() {
               <EmptyState
                 icon={<TrendingUp className="size-5" />}
                 title="No investments recorded"
-                description="Add a mutual fund, an FD or your parents' holdings to start tracking the family's wealth."
+                description="Add a mutual fund, an FD or a stock. You can tag your parents' ones too."
                 action={
                   <Button size="sm" onClick={() => setAdding(true)}>
                     <Plus className="size-4" /> Add investment

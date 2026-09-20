@@ -28,7 +28,7 @@ export function Slider({
     <div className={cn('w-full', className)}>
       <div className="mb-1.5 flex items-baseline justify-between gap-3">
         <label className="text-[13px] font-medium text-ink-soft">{label}</label>
-        <span className="tnum text-[13px] font-semibold text-ink">{display ?? value}</span>
+        <span className="num-mono text-[13px] font-semibold text-ink">{display ?? value}</span>
       </div>
       <input
         type="range"

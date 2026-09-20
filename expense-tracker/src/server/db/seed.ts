@@ -8,6 +8,7 @@ import './env';
 import bcrypt from 'bcryptjs';
 import { closePool, query } from './client';
 import { DEFAULT_CATEGORIES } from '../../lib/constants';
+import type { NeedLevel } from '../../lib/constants';
 
 const EMAIL = process.env.SEED_EMAIL ?? 'demo@paisa.app';
 const PASSWORD = process.env.SEED_PASSWORD ?? 'demo1234';
@@ -62,12 +63,19 @@ async function main() {
   const catValues: unknown[] = [userId];
   const catTuples = DEFAULT_CATEGORIES.map((c) => {
     const base = catValues.length;
-    catValues.push(c.name, c.kind, c.bucket, c.icon, c.color);
-    return `($1, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`;
+    catValues.push(c.name, c.kind, c.bucket, c.icon, c.color, c.need);
+    return `($1, $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6})`;
   });
-  const categories = await query<{ id: string; name: string; kind: string; bucket: string }>(
-    `INSERT INTO categories (user_id, name, kind, bucket, icon, color)
-     VALUES ${catTuples.join(', ')} RETURNING id, name, kind, bucket`,
+  const categories = await query<{
+    id: string;
+    name: string;
+    kind: string;
+    bucket: string;
+    default_need_level: NeedLevel;
+  }>(
+    `INSERT INTO categories (user_id, name, kind, bucket, icon, color, default_need_level)
+     VALUES ${catTuples.join(', ')}
+     RETURNING id, name, kind, bucket, default_need_level`,
     catValues,
   );
   const catBy = (name: string) => categories.find((c) => c.name === name)!.id;
@@ -143,8 +151,8 @@ async function main() {
     ];
     for (const [catName, amount, merchant] of fixed) {
       await query(
-        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, amount, txn_date, merchant)
-         VALUES ($1,$2,$3,$4,'expense','home',$5,$6,$7)`,
+        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, need_level, amount, txn_date, merchant)
+         VALUES ($1,$2,$3,$4,'expense','home','need',$5,$6,$7)`,
         [
           userId,
           salary,
@@ -171,15 +179,21 @@ async function main() {
             : cat.name === 'Education'
               ? rand(1500, 9000)
               : rand(90, 2400);
+      // Roughly a fifth of the "nice to have" spending is money you would take
+      // back if you could - which is exactly what the leaks card is for.
+      const level: NeedLevel =
+        cat.default_need_level === 'want' && Math.random() < 0.28 ? 'waste' : cat.default_need_level;
+
       await query(
-        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, amount, txn_date, merchant)
-         VALUES ($1,$2,$3,$4,'expense',$5,$6,$7,$8)`,
+        `INSERT INTO transactions (user_id, account_id, category_id, person_id, type, bucket, need_level, amount, txn_date, merchant)
+         VALUES ($1,$2,$3,$4,'expense',$5,$6,$7,$8,$9)`,
         [
           userId,
           pick([salary, upi, cash, card]),
           cat.id,
           me,
           cat.bucket,
+          level,
           amount,
           iso(new Date(monthDate.getFullYear(), monthDate.getMonth(), rand(1, cap))),
           pick(names),
