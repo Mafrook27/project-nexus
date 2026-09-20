@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Copy, Smartphone, Trash2, TriangleAlert } from 'lucide-react';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -63,7 +64,11 @@ export function DevicesCard() {
       <CardHeader
         title="Connected phones"
         subtitle="A paired phone can send spends it spots, and nothing else"
-        action={<Smartphone className="size-4.5 text-ink-muted" />}
+        action={
+          <Link href="/sms-test" className="text-[12.5px] font-medium text-brand hover:underline">
+            Test a message
+          </Link>
+        }
       />
 
       {devices.length ? (

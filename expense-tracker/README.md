@@ -64,6 +64,17 @@ openssl rand -base64 48
 If you seeded, sign in with `demo@paisa.app` / `demo1234`. Otherwise open
 `/register` and create your own account.
 
+**Just want to try the SMS parsing?** It needs no database and no server:
+
+```bash
+npm install
+npm run parse -- "Rs.500 debited from A/c XX1234 to Swiggy Ref 528312345678"
+```
+
+Once the app is running, **Settings → Test a message** does the same thing in
+the browser, and can push the message through the real sync endpoint so you can
+watch it land. Full guide: **[docs/TESTING.md](docs/TESTING.md)**.
+
 ### Scripts
 
 | Command | What it does |
@@ -75,6 +86,7 @@ If you seeded, sign in with `demo@paisa.app` / `demo1234`. Otherwise open
 | `npm run db:migrate` | Apply `schema.sql` (safe to re-run) |
 | `npm run db:reset` | Drop every table, then re-apply |
 | `npm run db:seed` | Rebuild the demo account |
+| `npm run parse -- "<sms>"` | Check what a bank message parses to, no setup needed |
 
 ---
 

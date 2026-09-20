@@ -14,7 +14,8 @@
     "db:migrate": "tsx src/server/db/migrate.ts",
     "db:seed": "tsx src/server/db/seed.ts",
     "db:reset": "tsx src/server/db/migrate.ts --reset",
-    "test": "node --import tsx --test \"src/**/*.test.ts\""
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "parse": "tsx scripts/parse-sms.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
