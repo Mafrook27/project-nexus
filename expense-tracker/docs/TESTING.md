@@ -53,24 +53,22 @@ the **pooled** connection string.
 ```bash
 cd expense-tracker
 npm install
-
-cp .env.example .env.local
+npm run setup
 ```
 
-Fill in two values in `.env.local`:
-
-```
-DATABASE_URL="postgresql://…?sslmode=require"
-AUTH_SECRET="paste the output of: openssl rand -base64 48"
-```
+`npm run setup` asks where the data should live (Neon, Supabase, a local
+Postgres, or Docker), proves the connection works before writing anything,
+generates the auth secret itself, creates the tables and offers to load a year
+of demo data. Re-running it is safe.
 
 Then:
 
 ```bash
-npm run db:migrate    # create the tables
-npm run db:seed       # a year of demo data + 3 spends waiting for review
 npm run dev           # http://localhost:3000
 ```
+
+Doing it by hand instead: copy `.env.example` to `.env.local`, set
+`DATABASE_URL` and `AUTH_SECRET`, then `npm run db:migrate && npm run db:seed`.
 
 Sign in with **demo@paisa.app / demo1234**.
 

@@ -8,6 +8,34 @@ database.
 
 ---
 
+## Will it cost anything? No, and here is the arithmetic
+
+Measured from a real database holding a seeded year of data, indexes included:
+
+| | |
+|---|---|
+| One transaction, with every index | **1.7 KB** |
+| A heavy year (40 spends a month) | **~0.8 MB** |
+| Ten years | **~8 MB** |
+| Whole database after ten years, Postgres overhead included | **~17 MB** |
+| Neon's free tier | **512 MB** |
+
+Ten years of tracking uses about **3%** of the free allowance. Storage is not
+the thing that will ever push you onto a paid plan, so do not pick a database
+on that basis.
+
+What actually differs between the free tiers:
+
+| | Storage | Expires? | Sleeps? | Card needed |
+|---|---|---|---|---|
+| **Neon** (recommended) | 0.5 GB | no | scales to zero, wakes in ~1s | no |
+| **Supabase** | 0.5 GB | no | pauses after 7 idle days, manual resume | no |
+| **Render Postgres** | 1 GB | **deleted after 30 days** | no | no |
+
+Neon is the default here because it neither expires nor needs waking by hand.
+
+---
+
 ## Step 1 — Create the database (Neon)
 
 Neon's free tier does not expire and does not need a card.
@@ -30,10 +58,18 @@ Neon's free tier does not expire and does not need a card.
 
 ### Create the tables
 
-From your machine, with `.env.local` filled in:
+The quickest path does all of this for you, including generating the auth
+secret and testing the connection before it writes anything:
 
 ```bash
 cd expense-tracker
+npm install
+npm run setup
+```
+
+If you would rather do it by hand, fill in `.env.local` and run:
+
+```bash
 npm run db:migrate
 ```
 

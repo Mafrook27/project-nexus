@@ -47,19 +47,13 @@ database is plenty.
 ```bash
 cd expense-tracker
 npm install
-
-cp .env.example .env.local     # then fill in DATABASE_URL and AUTH_SECRET
-npm run db:migrate             # create the tables
-npm run db:seed                # optional: a year of demo data
-
-npm run dev                    # http://localhost:3000
+npm run setup     # picks a database, generates the secret, creates the tables
+npm run dev       # http://localhost:3000
 ```
 
-Generate a secret with:
-
-```bash
-openssl rand -base64 48
-```
+`npm run setup` walks you through it: Neon, Supabase, a local Postgres or
+Docker. It tests the connection before writing anything and can load a year of
+demo data. Nothing to look up, no secret to generate by hand.
 
 If you seeded, sign in with `demo@paisa.app` / `demo1234`. Otherwise open
 `/register` and create your own account.
@@ -83,6 +77,7 @@ watch it land. Full guide: **[docs/TESTING.md](docs/TESTING.md)**.
 | `npm run build` / `npm run start` | Production build and serve |
 | `npm run typecheck` | TypeScript, no emit |
 | `npm test` | Unit tests for the finance maths and the CSV parser |
+| `npm run setup` | First-run wizard: database, secret, tables, demo data |
 | `npm run db:migrate` | Apply `schema.sql` (safe to re-run) |
 | `npm run db:reset` | Drop every table, then re-apply |
 | `npm run db:seed` | Rebuild the demo account |
