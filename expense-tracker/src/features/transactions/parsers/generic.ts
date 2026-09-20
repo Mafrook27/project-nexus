@@ -38,6 +38,19 @@ const STOP_WORDS =
   /\s+(?:on|ref|refno|avl|avail|available|not\s+you|call|if\s+not|dt|date|bal|upi|txn)\b/i;
 
 /**
+ * Indian banks sign their messages with a trailing "-IOB" or "-City Union
+ * Bank", and end the payee with a full stop. Both would otherwise be swallowed
+ * into the merchant name.
+ */
+function trimTail(value: string): string {
+  return value
+    .split(/\s+-\s*[A-Za-z]/)[0] // " -IOB", " -City Union Bank"
+    .split(/\.(?:\s|$)/)[0] // "ZOMATO. Avl Bal..."
+    .replace(/[.,;:\s-]+$/, '')
+    .trim();
+}
+
+/**
  * The shared read. Every bank parser is this function plus its own list of
  * places to look for the payee.
  */
@@ -78,7 +91,7 @@ function firstMatch(message: string, patterns: RegExp[]): string | undefined {
   for (const pattern of patterns) {
     const found = message.match(pattern)?.[1];
     if (!found) continue;
-    const trimmed = found.split(STOP_WORDS)[0].trim();
+    const trimmed = trimTail(found.split(STOP_WORDS)[0]);
     if (trimmed.length >= 2) return trimmed;
   }
   return undefined;

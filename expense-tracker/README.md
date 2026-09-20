@@ -19,7 +19,7 @@ IBM Plex · light theme only · installable as a PWA · built for a phone first
 |---|---|
 | **Dashboard** | Cash flow first: what came in, what you spent, what you saved, what is left. Then the money you wasted, where the rest went, budgets, bills due, net worth and freedom progress |
 | **Money in & out** | Expense / income / transfer, tagged **home** or **personal**, by category, account and person. Filter by any of them, search, edit inline, export |
-| **Automatic capture** | A paired phone turns bank SMS into spends by itself. Parsers for HDFC, ICICI, SBI, Axis and Kotak plus a generic fallback, two-layer deduplication so one payment never lands twice, and merchant rules so it stops asking about shops you have explained. See [docs/TRANSACTION-INTELLIGENCE.md](docs/TRANSACTION-INTELLIGENCE.md) |
+| **Automatic capture** | A paired phone turns bank SMS into spends by itself. Parsers for IPPB, CUB, SBI, IOB, HDFC, ICICI, Axis and Kotak plus a generic fallback, two-layer deduplication so one payment never lands twice, and merchant rules so it stops asking about shops you have explained. See [docs/TRANSACTION-INTELLIGENCE.md](docs/TRANSACTION-INTELLIGENCE.md) |
 | **Needs a look** | The queue of detected spends: what was it, was it worth it, why. Answer once and tick "always sort this way" and that merchant is never asked about again |
 | **Was it worth it?** | Every spend is marked **must have**, **nice to have** or **wasted**. The dashboard then shows what you wasted this month, which categories leak the most, and what that money would become if you invested it instead |
 | **CSV import** | Drop in a bank statement. Columns are auto-detected, Indian date formats are understood, and unknown categories are created for you |

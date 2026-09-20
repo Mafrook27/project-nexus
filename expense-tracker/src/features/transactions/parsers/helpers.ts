@@ -4,8 +4,11 @@ import type { PaymentMethod } from './types';
 
 /** "Rs.1,250.50" / "INR 1250" / "₹1,250" -> 1250.5 */
 export function extractAmount(message: string): number | null {
+  // Each numeric group must START with a digit. Without that anchor `[\d,]+`
+  // happily matches the bare comma in "Dear Customer, Rs.3000.00", which then
+  // parses to 0 and throws the whole message away.
   const match = message.match(
-    /(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)|([\d,]+(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹)/i,
+    /(?:rs\.?|inr|₹)\s*(\d[\d,]*(?:\.\d{1,2})?)|(\d[\d,]*(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹)/i,
   );
   const raw = match?.[1] ?? match?.[2];
   if (!raw) return null;
@@ -45,24 +48,78 @@ export function detectPaymentMethod(message: string): PaymentMethod {
 /** Debit wins: "debited ... and credited to SWIGGY" is money leaving you. */
 export function detectDirection(message: string): 'debit' | 'credit' | null {
   const m = message.toLowerCase();
-  if (/debited|spent|withdrawn|sent|paid|purchase|deducted|txn of/.test(m)) return 'debit';
+  if (
+    /debited|spent|withdrawn|sent|paid|purchase|deducted|txn\s+(?:of|at)|used\s+(?:for|at)/.test(m)
+  ) {
+    return 'debit';
+  }
   if (/credited|received|deposited|refund/.test(m)) return 'credit';
   return null;
 }
 
 /**
- * Messages that look like transactions but are not: one-time passwords,
- * balance alerts, declines, and warnings about what *will* happen.
+ * Messages that look like transactions but are not.
+ *
+ * This matters more than the parsing does. A missed spend is a gap you can
+ * fill by hand; a one-time password turned into a ₹500 expense is a wrong
+ * number in your dashboard that you have to hunt down and delete. Everything
+ * here errs toward rejecting.
  */
 export function isNotATransaction(message: string): boolean {
   const m = message.toLowerCase();
+  return isCode(m) || isFutureOrFailed(m) || isPromotion(m) || isBalanceOnly(m);
+}
+
+/**
+ * One-time passwords and their many aliases. Indian banks write these a dozen
+ * ways and only some of them say "OTP" - IPPB and IOB both send plain
+ * "verification code" messages, and those still quote a rupee amount.
+ */
+function isCode(m: string): boolean {
   return (
-    /\botp\b|one[\s-]?time\s*password|do not share/.test(m) ||
-    /will be (?:debited|charged|deducted)|is due|due on|reminder/.test(m) ||
-    /declined|failed|unsuccessful|reversed/.test(m) ||
-    /(?:avl|available|total)\s*(?:bal|balance)[^.]*$/i.test(m.split(/[.;]/)[0] ?? '') ||
-    /^(?:your|the)\s+(?:a\/c|account)[^.]*balance\s+is\b/.test(m)
+    /\botp\b/.test(m) ||
+    /one[\s-]?time\s*(?:password|pin|passcode)/.test(m) ||
+    /(?:verification|authentication|security|secure|access|login|activation)\s*code/.test(m) ||
+    /\bpasscode\b|\bmpin\b|\bcvv\b/.test(m) ||
+    /(?:do\s*not|don'?t|never)\s+share/.test(m) ||
+    /valid\s+(?:for|till|upto|up\s+to)\s+\d+\s*(?:min|sec|hour)/.test(m) ||
+    // "123456 is your code for ..." with no other framing.
+    /\b\d{4,8}\b\s+is\s+(?:your|the)\b/.test(m)
   );
+}
+
+/** Something that has not happened, or happened and then did not. */
+function isFutureOrFailed(m: string): boolean {
+  return (
+    /will\s+be\s+(?:debited|credited|charged|deducted|deducted)/.test(m) ||
+    /is\s+due|due\s+on|due\s+date|reminder|scheduled\s+for/.test(m) ||
+    /declined|failed|unsuccessful|reversed|refund\s+initiated|could\s+not\s+be/.test(m) ||
+    /insufficient\s+(?:balance|funds)/.test(m) ||
+    /mandate|e-?nach|autopay\s+set/.test(m)
+  );
+}
+
+/**
+ * Marketing. The dangerous ones are the offers that say "spend Rs.2000 and
+ * get cashback", because "spend" is exactly the verb a real alert uses.
+ */
+function isPromotion(m: string): boolean {
+  return (
+    /cashback|offer\s+(?:valid|ends)|apply\s+now|t&c|terms\s+and\s+conditions/.test(m) ||
+    /click\s+here|congratulations|limited\s+period|hurry|pre-?approved/.test(m) ||
+    /voucher|discount|lowest\s+interest|eligible\s+for\s+a?\s*loan|avail\s+/.test(m) ||
+    /\bwin\b|\bfree\b\s+(?:gift|trip|coupon)/.test(m)
+  );
+}
+
+/**
+ * A balance alert with no movement. Most are caught anyway because they carry
+ * no debit or credit verb, but IPPB and CUB both send "Available balance in
+ * your A/c ... is Rs.X" which reads close enough to matter.
+ */
+function isBalanceOnly(m: string): boolean {
+  if (/debited|credited|spent|withdrawn|sent|deposited/.test(m)) return false;
+  return /balance|bal\s*(?:is|:)/.test(m);
 }
 
 const VPA_SUFFIX = /@[a-z0-9.\-]+$/i;
@@ -80,6 +137,13 @@ export function cleanMerchant(raw: string | undefined): string | undefined {
     .trim();
   if (name.length < 2 || name.length > 60) return undefined;
   if (/^\d+$/.test(name)) return undefined;
+  // A cash withdrawal has no payee. "at IOB ATM" names the machine, not a
+  // shop, and calling it a merchant would put "Iob Atm" in your category list.
+  if (/\batms?\b|cash\s*(?:point|withdraw)/i.test(name)) return undefined;
+  // "credited to your A/c XXXX1234" points at you, not at a payee. Every bank
+  // phrases incoming money this way, and the payee slot must stay empty.
+  if (/^(?:your|my|self|a\/?c|acct?|account)\b/i.test(name)) return undefined;
+  if (/\ba\/c\b|\baccount\b/i.test(name)) return undefined;
   // Banks shout ("AMAZON") and VPA handles whisper ("swiggy@ybl"). Either way
   // the name carries no capitalisation of its own, so give it sentence case.
   // A name that already mixes cases ("BigBasket") is left exactly as written.

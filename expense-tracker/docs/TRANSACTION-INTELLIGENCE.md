@@ -119,13 +119,20 @@ parsers/
 ├── types.ts     the shape every parser produces
 ├── helpers.ts   amount, account, reference, direction, date, merchant cleanup
 ├── generic.ts   the shared read + the fallback parser
+├── ippb.ts      "debited ... and credited to <vpa>", "UPI Ref no"
+├── cub.ts       "towards UPI/<rrn>/<payee>", "Card XX.. used for Rs.X at <m>"
+├── sbi.ts       "by transfer to <payee> Ref No", "trf to <payee> Refno"
+├── iob.ts       "by UPI Ref <rrn> to <payee>" - reference before the payee
 ├── hdfc.ts      "To <payee> On", and a YYYY-MM-DD:HH:MM:SS stamp
 ├── icici.ts     "Info: UPI/<rrn>/<payee>", "; <payee> credited"
-├── sbi.ts       "by transfer to <payee> Ref No"
 ├── axis.ts      "Info- UPI/P2M/<rrn>/<payee>"
 ├── kotak.ts     payee ends at a full stop, not a space
 └── index.ts     parseBankMessage(message, sender?)
 ```
+
+The first four are the banks actually in use. `my-banks.test.ts` covers them
+against real-shaped messages, with more cases devoted to what must be
+**rejected** than to what must be read.
 
 Banks differ almost entirely in **where they put the payee**, so a bank parser
 is the shared reader plus its own ordered list of merchant patterns. Two of
@@ -136,9 +143,20 @@ The sender id picks the parser when it is available — it is the one part of an
 SMS a bank cannot get wrong. Otherwise the body picks, and failing that the
 generic reader has a go at lower confidence.
 
-**What must never become a transaction** is as important as what must:
-one-time passwords, balance alerts, declines, and warnings about what *will*
-be debited are all rejected. There are tests for each.
+**What must never become a transaction** matters more than what must. A missed
+spend is a gap you fill by hand; a one-time password turned into a ₹500 expense
+is a wrong number you have to hunt down. Four families are rejected, each with
+tests:
+
+| Family | Examples that are rejected |
+|---|---|
+| Codes | "OTP", "One Time Password", "verification code", "secure code", "authentication code", "do not share", "valid for 10 mins", "123456 is your…" |
+| Not yet, or not at all | "will be debited", "is due on", "declined", "insufficient balance", "e-mandate set up" |
+| Marketing | "cashback", "offer valid", "apply now", "T&C apply", "pre-approved", "congratulations" |
+| Balance only | a message with a balance and no debit or credit verb |
+
+Almost every one of these quotes a rupee amount, and several use the word
+"transaction" — which is exactly why keyword-spotting an amount is not enough.
 
 ### Confidence
 

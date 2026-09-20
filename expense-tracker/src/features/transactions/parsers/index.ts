@@ -5,6 +5,9 @@ import { iciciParser } from './icici';
 import { sbiParser } from './sbi';
 import { axisParser } from './axis';
 import { kotakParser } from './kotak';
+import { ippbParser } from './ippb';
+import { cubParser } from './cub';
+import { iobParser } from './iob';
 
 export type { ParsedTransaction, PaymentMethod } from './types';
 export { parseWith } from './generic';
@@ -16,6 +19,9 @@ export const PARSERS: BankParser[] = [
   sbiParser,
   axisParser,
   kotakParser,
+  ippbParser,
+  cubParser,
+  iobParser,
 ];
 
 /**
