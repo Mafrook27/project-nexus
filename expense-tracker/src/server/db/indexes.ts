@@ -113,9 +113,13 @@ async function existingNames(collection: ReturnType<typeof col<AnyDoc>>): Promis
   try {
     const list = await collection.listIndexes().toArray();
     return new Set(list.map((i) => i.name as string));
-  } catch {
-    // The collection does not exist yet, which is not an error.
-    return new Set();
+  } catch (err) {
+    // A collection that does not exist yet has no indexes, which is not an
+    // error. Anything else is - notably a connection failure, which a blanket
+    // catch here would turn into a confusing "Topology is closed" further on
+    // instead of saying the database could not be reached.
+    if ((err as { code?: number }).code === 26) return new Set();
+    throw err;
   }
 }
 

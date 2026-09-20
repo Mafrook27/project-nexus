@@ -9,6 +9,7 @@
 import './env';
 import { COLLECTIONS, closeClient, col, getDb, type AnyDoc } from './mongo';
 import { ensureIndexes } from './indexes';
+import { reportDbError } from './explain';
 
 async function main() {
   if (process.argv.includes('--reset')) {
@@ -28,7 +29,7 @@ async function main() {
 }
 
 main().catch(async (err) => {
-  console.error('✗ migration failed:', err.message);
+  reportDbError('Migration failed:', err);
   await closeClient().catch(() => {});
   process.exit(1);
 });

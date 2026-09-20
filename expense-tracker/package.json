@@ -7,17 +7,17 @@
     "node": ">=20.9.0"
   },
   "scripts": {
-    "setup": "tsx scripts/setup.ts",
+    "setup": "tsx --conditions=react-server scripts/setup.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "tsx src/server/db/migrate.ts",
-    "db:seed": "tsx src/server/db/seed.ts",
-    "db:reset": "tsx src/server/db/migrate.ts --reset",
+    "db:migrate": "tsx --conditions=react-server src/server/db/migrate.ts",
+    "db:seed": "tsx --conditions=react-server src/server/db/seed.ts",
+    "db:reset": "tsx --conditions=react-server src/server/db/migrate.ts --reset",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "parse": "tsx scripts/parse-sms.ts",
-    "db:check": "tsx src/server/db/check.ts"
+    "db:check": "tsx --conditions=react-server src/server/db/check.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

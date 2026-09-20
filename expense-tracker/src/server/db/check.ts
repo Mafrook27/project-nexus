@@ -18,6 +18,7 @@ import {
   type AnyDoc,
 } from './mongo';
 import { ensureIndexes, REQUIRED_UNIQUE_INDEXES } from './indexes';
+import { reportDbError } from './explain';
 
 type Check = { name: string; ok: boolean; detail: string };
 const results: Check[] = [];
@@ -163,7 +164,7 @@ function sample(id: string, reference: string, amount = 123.45) {
 }
 
 main().catch(async (err) => {
-  console.log(`\n\x1b[31mCheck stopped:\x1b[0m ${err instanceof Error ? err.message : err}\n`);
+  reportDbError('Check stopped:', err);
   await transactions().deleteMany({ user_id: TEST_USER }).catch(() => {});
   await closeClient().catch(() => {});
   process.exit(1);

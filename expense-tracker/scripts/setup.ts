@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MongoClient } from 'mongodb';
+import { explainDbError } from '../src/server/db/explain';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const envPath = join(root, '.env.local');
@@ -200,7 +201,9 @@ async function testConnection(url: string): Promise<string | null> {
 }
 
 main().catch(async (err) => {
-  console.log(c.red(`\nSetup stopped: ${err instanceof Error ? err.message : err}\n`));
+  const message = err instanceof Error ? err.message : String(err);
+  console.log(c.red(`\nSetup stopped: ${message}\n`));
+  for (const line of explainDbError(message)) console.log(line);
   rl.close();
   process.exit(1);
 });
