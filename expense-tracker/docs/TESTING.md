@@ -46,7 +46,7 @@ npm test
 
 ## 2. Run the whole app locally
 
-You need **Node 20+** and a MongoDB connection string. A free
+You need **Node 22+** and a MongoDB connection string. A free
 [Atlas M0](https://www.mongodb.com/cloud/atlas) cluster is the easiest: sign up,
 create an M0 cluster, add a database user, allow your IP under Network Access,
 then **Connect → Drivers** and copy the string.

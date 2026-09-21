@@ -4,7 +4,7 @@
   "private": true,
   "description": "Paisa - personal expense, savings, investment and FIRE tracker",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "setup": "tsx --conditions=react-server scripts/setup.ts",

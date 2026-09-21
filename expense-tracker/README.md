@@ -41,7 +41,7 @@ numbers.
 
 ## Quick start
 
-You need **Node 20+** and a **MongoDB 6+** database. A free MongoDB Atlas M0
+You need **Node 22+** and a **MongoDB 6+** database. A free MongoDB Atlas M0
 cluster is plenty — it does not expire and needs no card.
 
 ```bash
