@@ -1,0 +1,77 @@
+# Runs the checks that would otherwise only be run by hand before a push.
+#
+# Scoped to expense-tracker/ on purpose: this repository holds more than one
+# project, and a change to project_1 should not wait on Paisa's build.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'expense-tracker/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'expense-tracker/**'
+      - '.github/workflows/ci.yml'
+
+# A new push supersedes the run in flight for the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: expense-tracker
+
+jobs:
+  check:
+    name: typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22 is what render.yaml pins and what Vercel runs, so CI tests the
+      # version that actually serves the app. The test script passes a glob to
+      # node --test, which needs Node 21 or newer.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: expense-tracker/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test | tee test-output.txt
+
+      # node --test exits non-zero when a test fails, but it exits ZERO when
+      # the glob matches nothing at all. That would be a green tick over an
+      # empty suite, which is worse than a red one - so assert tests ran.
+      - name: Assert the suite was not empty
+        run: |
+          passed=$(sed -n 's/^# pass \([0-9]\+\)$/\1/p' test-output.txt)
+          echo "tests passed: ${passed:-none reported}"
+          if [ -z "$passed" ] || [ "$passed" -eq 0 ]; then
+            echo "::error::No tests ran. The glob in the test script matched nothing."
+            exit 1
+          fi
+
+      # AUTH_SECRET is read at build time by the session module. It is a
+      # throwaway value for the build only - nothing signed with it is kept.
+      # MONGODB_URI is deliberately absent: the client is created lazily, and
+      # a build that needs a live database would be a bug.
+      - name: Build
+        run: npm run build
+        env:
+          AUTH_SECRET: ci-build-placeholder-not-a-real-secret
+          NEXT_TELEMETRY_DISABLED: '1'

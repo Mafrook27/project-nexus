@@ -1,0 +1,38 @@
+# Render blueprint. Point Render at this repo and it builds the same Next.js app
+# that Vercel runs - no separate backend, because the API routes live in it.
+#
+#   Render dashboard -> New -> Blueprint -> pick this repository
+#
+# MONGODB_URI is marked `sync: false`, so Render asks you for it on the first
+# deploy. Paste your MongoDB Atlas connection string there.
+services:
+  - type: web
+    name: paisa
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: expense-tracker
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: NODE_ENV
+        value: production
+      # Paste your Atlas connection string when Render prompts. Keep the
+      # database name on the end: .../paisa?retryWrites=true&w=majority
+      - key: MONGODB_URI
+        sync: false
+      # Render generates a strong random value and keeps it across deploys.
+      - key: AUTH_SECRET
+        generateValue: true
+      # Optional: restrict who can create an account on your instance.
+      - key: ALLOWED_EMAILS
+        sync: false
+
+# Atlas is not hosted by Render, so allow Render's outbound traffic to reach it:
+# Atlas -> Network Access -> Add IP Address -> 0.0.0.0/0. That is safe only
+# because your database user has a long random password; Atlas still refuses
+# anyone without it. Render's free plan has no static outbound IP to allow-list.

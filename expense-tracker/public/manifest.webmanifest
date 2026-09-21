@@ -1,0 +1,32 @@
+{
+  "name": "Paisa · money tracker",
+  "short_name": "Paisa",
+  "description": "Expenses, savings, family investments, SIPs and your FIRE goal in one place.",
+  "id": "/dashboard",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "background_color": "#f6f7f9",
+  "theme_color": "#ffffff",
+  "categories": ["finance", "productivity"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Add transaction", "url": "/transactions?add=1", "description": "Record a spend" },
+    { "name": "Dashboard", "url": "/dashboard" },
+    { "name": "FIRE progress", "url": "/fire" }
+  ]
+}
