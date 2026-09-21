@@ -17,7 +17,6 @@
  * dashboard. The window is deliberately short and the merchant check
  * deliberately strict.
  */
-import { DEDUPE_WINDOW_SECONDS } from '@/lib/intelligence';
 
 /** Lowercased letters and digits only, so "Swiggy Ltd." and "SWIGGY" match. */
 export function normaliseMerchant(value: string | null | undefined): string {
@@ -73,17 +72,3 @@ export function pickDuplicate(
     ) ?? null
   );
 }
-
-/** The SQL that fetches those candidates. Amount and window are exact. */
-export const DUPLICATE_WINDOW_SQL = `
-  SELECT id, merchant, account_last4
-  FROM transactions
-  WHERE user_id = $1
-    AND status <> 'ignored'
-    AND amount = $2
-    AND type = $3
-    AND transaction_at BETWEEN $4::timestamptz - interval '${DEDUPE_WINDOW_SECONDS} seconds'
-                           AND $4::timestamptz + interval '${DEDUPE_WINDOW_SECONDS} seconds'
-  ORDER BY transaction_at DESC
-  LIMIT 20
-`;

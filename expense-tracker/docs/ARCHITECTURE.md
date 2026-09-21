@@ -2,6 +2,10 @@
 
 Notes for the next person to open this codebase — probably you, in six months.
 
+This file is the *why*. For the *where* — diagrams of the request path, the data
+model, and how a bank SMS becomes a sorted spend — see
+**[CODE-MAP.md](CODE-MAP.md)**.
+
 ---
 
 ## The shape of it

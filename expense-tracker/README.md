@@ -157,8 +157,11 @@ other's internals. Where they genuinely must (the dashboard needs the accounts
 balance pipeline), they import that feature's `service.ts`, which is its public
 face.
 
-`docs/ARCHITECTURE.md` walks through the request lifecycle, why the CRUD factory
-exists, and how a new feature gets added in about fifteen minutes.
+**[docs/CODE-MAP.md](docs/CODE-MAP.md)** is the fastest way in: diagrams of the
+request path, the data model, and how a bank SMS becomes a sorted spend. Start
+there. **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** then explains *why* each
+of those decisions was made, and how a new feature gets added in about fifteen
+minutes.
 
 ---
 
